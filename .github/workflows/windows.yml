@@ -81,6 +81,8 @@ jobs:
           if (Test-Path "runtime\LICENSE-wintun.txt") { Copy-Item "runtime\LICENSE-wintun.txt" "publish\runtime\" -Force }
           & "runtime\sing-box.exe" version
           if ($LASTEXITCODE -ne 0) { throw "sing-box runtime smoke test failed." }
+          & "runtime\sing-box.exe" check -c "tools\smoke-config.json"
+          if ($LASTEXITCODE -ne 0) { throw "sing-box TUN/DNS config validation failed." }
           if (!(Test-Path "publish\MoghimiVPN.exe")) { throw "WPF application executable missing." }
           if (!(Test-Path "publish\MoghimiVPN.TunnelHost.exe")) { throw "Tunnel host executable missing." }
 
