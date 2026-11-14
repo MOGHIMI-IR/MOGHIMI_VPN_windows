@@ -197,7 +197,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ConnectButton.IsEnabled = true;
         HeaderStatus.Text = "در حال بررسی";
         ConnectionStatus.Text = "در حال انتخاب بهترین سرور…";
-        ProbeStatus.Text = "در حال سنجش کیفیت واقعی سرورها";
+        ProbeStatus.Text = "در حال سنجش سرورها · برای لغو دوباره دکمه اتصال را بزن";
         ProbeProgress.Visibility = Visibility.Visible;
         ProbeProgress.Value = 0;
         StartOrbAnimation();
@@ -431,6 +431,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         try
         {
+            var confirm = MessageBox.Show(
+                "لینک این کانفیگ شامل اطلاعات اتصال مانند رمز یا کلید سرور است. آن را فقط برای فرد مورداعتماد بفرست.\n\nادامه می‌دهی؟",
+                "هشدار حریم خصوصی", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
             Clipboard.SetText(ProfileCodec.Encode(_selectedProfile));
             MessageBox.Show("لینک کانفیگ در کلیپ‌بورد کپی شد.", "اشتراک‌گذاری",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -453,6 +457,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         try
         {
+            var confirm = MessageBox.Show(
+                "تصویر QR شامل اطلاعات کامل اتصال این کانفیگ است. آن را عمومی منتشر نکن.\n\nساخت QR را ادامه می‌دهی؟",
+                "هشدار حریم خصوصی", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
             var payload = ProfileCodec.Encode(_selectedProfile);
             var bytes = QrCodeService.CreatePng(payload);
             var safeName = new string(_selectedProfile.Name
@@ -592,6 +600,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var url = PromptDialog.Show(this, "افزودن اشتراک", "آدرس HTTPS یا HTTP اشتراک را وارد کن:");
         if (string.IsNullOrWhiteSpace(url)) return;
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var subscriptionUri) ||
+            subscriptionUri.Scheme is not ("https" or "http"))
+        {
+            MessageBox.Show("آدرس اشتراک معتبر نیست؛ باید با https:// یا http:// شروع شود.",
+                "آدرس نامعتبر", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (subscriptionUri.Scheme == "http")
+        {
+            var proceed = MessageBox.Show(
+                "این اشتراک از HTTP رمزگذاری‌نشده دریافت می‌شود. ممکن است لینک و کانفیگ‌ها در مسیر شبکه دیده یا تغییر داده شوند.\n\nفقط در صورت اعتماد کامل به منبع ادامه بده.",
+                "هشدار امنیتی HTTP", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (proceed != MessageBoxResult.Yes) return;
+        }
         var name = PromptDialog.Show(this, "نام اشتراک", "یک نام برای این اشتراک وارد کن:") ?? "اشتراک جدید";
         var sub = new SubscriptionItem { Url = url.Trim(), Name = string.IsNullOrWhiteSpace(name) ? "اشتراک جدید" : name.Trim() };
         Subscriptions.Add(sub);

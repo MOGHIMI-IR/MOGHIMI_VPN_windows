@@ -1,6 +1,8 @@
 using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace MoghimiVPN;
 
@@ -9,7 +11,7 @@ public static class SystemProxyController
     private const string KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
     private static readonly string BackupPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MoghimiVPN", "proxy-backup.json");
+        "MoghimiVPN", "proxy-backup.dpapi");
 
     private sealed class Snapshot
     {
@@ -35,7 +37,12 @@ public static class SystemProxyController
                 AutoConfigURL = key.GetValue("AutoConfigURL") as string
             };
             Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
-            File.WriteAllText(BackupPath, JsonSerializer.Serialize(snapshot));
+            var clear = JsonSerializer.SerializeToUtf8Bytes(snapshot);
+            var encrypted = ProtectedData.Protect(clear, ProfileStore.Entropy(), DataProtectionScope.CurrentUser);
+            var temporary = BackupPath + ".tmp";
+            File.WriteAllBytes(temporary, encrypted);
+            if (File.Exists(BackupPath)) File.Replace(temporary, BackupPath, null);
+            else File.Move(temporary, BackupPath);
         }
 
         key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
@@ -50,7 +57,9 @@ public static class SystemProxyController
         if (!File.Exists(BackupPath)) return;
         try
         {
-            var snapshot = JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(BackupPath));
+            var encrypted = File.ReadAllBytes(BackupPath);
+            var clear = ProtectedData.Unprotect(encrypted, ProfileStore.Entropy(), DataProtectionScope.CurrentUser);
+            var snapshot = JsonSerializer.Deserialize<Snapshot>(clear);
             if (snapshot is null) return;
             using var key = Registry.CurrentUser.OpenSubKey(KeyPath, writable: true);
             if (key is null) return;
