@@ -100,7 +100,7 @@ public sealed class CloudSync
         var normalizedPath = path.Trim('/');
         var pathParts = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (pathParts.Length == 0 ||
-            pathParts.Any(part => part is "." or ".." || part.Contains('\') || part.Any(char.IsControl)))
+            pathParts.Any(part => part is "." or ".." || part.Contains('\\') || part.Any(char.IsControl)))
             throw new InvalidOperationException("مسیر فایل در کاتالوگ ابری معتبر نیست و رد شد.");
         var segments = string.Join("/", pathParts.Select(Uri.EscapeDataString));
         var signUrl = $"{ProjectUrl}/storage/v1/object/sign/{StorageBucket}/{segments}";
