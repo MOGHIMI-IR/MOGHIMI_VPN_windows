@@ -11,7 +11,6 @@ DefaultDirName={localappdata}\Programs\Moghimi VPN
 DefaultGroupName=Moghimi VPN
 UninstallDisplayName=Moghimi VPN
 UninstallDisplayIcon={app}\MoghimiVPN.exe
-SetupIconFile=..\assets\moghimi-vpn-icon.ico
 VersionInfoDescription=Moghimi VPN Setup
 VersionInfoCompany=Moghimi
 VersionInfoProductName=Moghimi VPN
