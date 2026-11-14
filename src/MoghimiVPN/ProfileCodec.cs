@@ -65,8 +65,8 @@ public static class ProfileCodec
         if (profile.Protocol == "shadowsocks" || string.IsNullOrWhiteSpace(profile.Protocol))
             return null;
         if (string.IsNullOrWhiteSpace(profile.Server) || profile.Port is < 1 or > 65535) return null;
-        if (profile.Protocol is "vless" or "vmess" && string.IsNullOrWhiteSpace(profile.Uuid)) return null;
-        if (profile.Protocol is "trojan" or "anytls" or "hysteria2" && string.IsNullOrWhiteSpace(profile.Password))
+        if ((profile.Protocol is "vless" or "vmess") && string.IsNullOrWhiteSpace(profile.Uuid)) return null;
+        if ((profile.Protocol is "trojan" or "anytls" or "hysteria2") && string.IsNullOrWhiteSpace(profile.Password))
             profile.Password = profile.Uuid;
         if (profile.Protocol == "tuic" && string.IsNullOrWhiteSpace(profile.Password))
             profile.Password = q["password"] ?? "";
