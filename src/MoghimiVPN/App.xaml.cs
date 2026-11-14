@@ -8,6 +8,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         ProfileStore.Instance.Load();
+        ProfileStore.Instance.ClearTransientConfigs();
         SystemProxyController.RecoverStaleProxy();
     }
 }
