@@ -30,7 +30,7 @@ var profiles = new List<ProxyProfile>
         Network = "ws", Path = "/vless", Host = "example.com", Fingerprint = "chrome" },
     new() { Name = "VLESS Reality", Protocol = "vless", Server = "192.0.2.11", Port = 443,
         Uuid = "00000000-0000-0000-0000-000000000002", Security = "reality", Sni = "example.com",
-        PublicKey = sampleKey, ShortId = "01234567", Network = "tcp", Fingerprint = "chrome" },
+        PublicKey = sampleKey.TrimEnd('='), ShortId = "01234567", Network = "tcp", Fingerprint = "chrome" },
     new() { Name = "VMess TLS gRPC", Protocol = "vmess", Server = "192.0.2.12", Port = 443,
         Uuid = "00000000-0000-0000-0000-000000000003", Security = "tls", Sni = "example.com",
         Network = "grpc", ServiceName = "vmess-service", Encryption = "auto" },

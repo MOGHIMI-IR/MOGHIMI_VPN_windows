@@ -306,10 +306,27 @@ public static class SingBoxConfigBuilder
                 throw new InvalidOperationException("کلید عمومی Reality (pbk) وارد نشده است.");
             tls["reality"] = new JsonObject {
                 ["enabled"] = true,
-                ["public_key"] = p.PublicKey,
+                ["public_key"] = NormalizeRealityPublicKey(p.PublicKey),
                 ["short_id"] = p.ShortId
             };
         }
         return tls;
+    }
+
+    private static string NormalizeRealityPublicKey(string input)
+    {
+        var value = input.Trim().Replace('-', '+').Replace('_', '/');
+        value = value.PadRight(value.Length + ((4 - value.Length % 4) % 4), '=');
+        byte[] decoded;
+        try { decoded = Convert.FromBase64String(value); }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException("کلید عمومی Reality باید Base64 یا Base64URL معتبر باشد.");
+        }
+
+        if (decoded.Length != 32)
+            throw new InvalidOperationException("کلید عمومی Reality باید دقیقاً 32 بایت باشد.");
+
+        return Convert.ToBase64String(decoded).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }

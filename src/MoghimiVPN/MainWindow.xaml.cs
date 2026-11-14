@@ -523,7 +523,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ScanLatency_Click(object sender, RoutedEventArgs e)
     {
-        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy) return;
+        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy || _connection.IsRunning) return;
         var button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _manualScanBusy = true;
