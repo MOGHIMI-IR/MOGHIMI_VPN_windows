@@ -58,6 +58,11 @@
     </Window.Resources>
 
     <Grid>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="226"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <Canvas Grid.ColumnSpan="2" IsHitTestVisible="False" ClipToBounds="True">
             <Ellipse Width="640" Height="640" Canvas.Right="-240" Canvas.Top="-300" Opacity="0.22">
                 <Ellipse.Fill>
@@ -76,10 +81,6 @@
                 </Ellipse.Fill>
             </Ellipse>
         </Canvas>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="226"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0" Background="#10141C" BorderBrush="#252D3A" BorderThickness="0,0,1,0" Padding="18">
             <DockPanel LastChildFill="True">
