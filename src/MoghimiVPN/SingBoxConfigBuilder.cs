@@ -10,7 +10,12 @@ public static class SingBoxConfigBuilder
         if (string.IsNullOrWhiteSpace(p.Server) || p.Port is < 1 or > 65535)
             throw new InvalidOperationException("آدرس یا پورت سرور معتبر نیست.");
 
-        var proxy = BuildOutbound(p);
+        var isWireGuard = p.Protocol == "wireguard";
+        var proxy = isWireGuard
+            ? new JsonObject { ["type"] = "direct", ["tag"] = "direct-via-wireguard" }
+            : BuildOutbound(p);
+        var endpoints = new JsonArray();
+        if (isWireGuard) endpoints.Add(BuildWireGuardEndpoint(p));
         var blocked = new JsonArray(
             "doubleclick.net", "googlesyndication.com", "googleadservices.com",
             "adservice.google.com", "adnxs.com", "taboola.com", "outbrain.com",
@@ -96,6 +101,7 @@ public static class SingBoxConfigBuilder
                 ["final"] = "dns-remote"
             },
             ["inbounds"] = inbounds,
+            ["endpoints"] = endpoints,
             ["outbounds"] = new JsonArray(
                 proxy,
                 new JsonObject { ["type"] = "direct", ["tag"] = "direct" },
@@ -110,6 +116,80 @@ public static class SingBoxConfigBuilder
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
+
+    public static string BuildProbe(ProxyProfile p, int listenPort)
+    {
+        if (listenPort is < 1024 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(listenPort));
+
+        var isWireGuard = p.Protocol == "wireguard";
+        var endpoints = new JsonArray();
+        var proxy = isWireGuard
+            ? new JsonObject { ["type"] = "direct", ["tag"] = "direct-via-wireguard" }
+            : BuildOutbound(p);
+
+        if (isWireGuard) endpoints.Add(BuildWireGuardEndpoint(p));
+
+        var root = new JsonObject
+        {
+            ["log"] = new JsonObject { ["level"] = "error", ["timestamp"] = true },
+            ["inbounds"] = new JsonArray(new JsonObject
+            {
+                ["type"] = "mixed",
+                ["tag"] = "probe-in",
+                ["listen"] = "127.0.0.1",
+                ["listen_port"] = listenPort
+            }),
+            ["endpoints"] = endpoints,
+            ["outbounds"] = new JsonArray(
+                proxy,
+                new JsonObject { ["type"] = "direct", ["tag"] = "direct" },
+                new JsonObject { ["type"] = "block", ["tag"] = "block" }
+            ),
+            ["route"] = new JsonObject
+            {
+                ["auto_detect_interface"] = true,
+                ["final"] = isWireGuard ? "proxy" : "proxy"
+            }
+        };
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static JsonObject BuildWireGuardEndpoint(ProxyProfile p)
+    {
+        if (string.IsNullOrWhiteSpace(p.PrivateKey) || string.IsNullOrWhiteSpace(p.PeerPublicKey))
+            throw new InvalidOperationException("برای WireGuard کلید خصوصی و کلید عمومی Peer لازم است.");
+        if (string.IsNullOrWhiteSpace(p.Server) || p.Port is < 1 or > 65535)
+            throw new InvalidOperationException("آدرس یا پورت سرور WireGuard معتبر نیست.");
+
+        var addresses = p.LocalAddress.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var allowed = p.AllowedIps.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (addresses.Length == 0 || allowed.Length == 0)
+            throw new InvalidOperationException("آدرس داخلی و Allowed IPs در کانفیگ WireGuard کامل نیست.");
+
+        var peer = new JsonObject
+        {
+            ["address"] = p.Server,
+            ["port"] = p.Port,
+            ["public_key"] = p.PeerPublicKey,
+            ["allowed_ips"] = new JsonArray(allowed.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+            ["persistent_keepalive_interval"] = 25,
+            ["reserved"] = new JsonArray(0, 0, 0)
+        };
+        if (!string.IsNullOrWhiteSpace(p.PreSharedKey))
+            peer["pre_shared_key"] = p.PreSharedKey;
+
+        return new JsonObject
+        {
+            ["type"] = "wireguard",
+            ["tag"] = "proxy",
+            ["system"] = false,
+            ["mtu"] = p.Mtu is >= 576 and <= 9000 ? p.Mtu : 1408,
+            ["address"] = new JsonArray(addresses.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
+            ["private_key"] = p.PrivateKey,
+            ["peers"] = new JsonArray(peer)
+        };
+    }
     private static JsonObject BuildOutbound(ProxyProfile p)
     {
         var o = new JsonObject { ["tag"] = "proxy", ["server"] = p.Server, ["server_port"] = p.Port };
@@ -160,17 +240,7 @@ public static class SingBoxConfigBuilder
                 if (!string.IsNullOrWhiteSpace(p.Password)) o["password"] = p.Password;
                 break;
             case "wireguard":
-                if (string.IsNullOrWhiteSpace(p.PrivateKey) || string.IsNullOrWhiteSpace(p.PeerPublicKey))
-                    throw new InvalidOperationException("برای WireGuard کلید خصوصی و کلید عمومی Peer لازم است.");
-                o["type"] = "wireguard";
-                o["local_address"] = new JsonArray(p.LocalAddress.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
-                o["private_key"] = p.PrivateKey;
-                o["peer_public_key"] = p.PeerPublicKey;
-                if (!string.IsNullOrWhiteSpace(p.PreSharedKey)) o["pre_shared_key"] = p.PreSharedKey;
-                o["mtu"] = p.Mtu <= 0 ? 1280 : p.Mtu;
-                o["reserved"] = new JsonArray(0, 0, 0);
-                o["allowed_ips"] = new JsonArray(p.AllowedIps.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
-                break;
+                throw new NotSupportedException("WireGuard باید از طریق WireGuard endpoint ساخته شود.");
             default:
                 throw new NotSupportedException($"پروتکل {p.Protocol} در این نسخه پشتیبانی نشده است.");
         }
