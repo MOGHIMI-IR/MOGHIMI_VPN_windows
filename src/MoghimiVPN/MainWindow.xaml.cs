@@ -693,6 +693,55 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SaveState();
     }
 
+    private void RemoveSubscription_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، اشتراک را حذف نکن.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_selectedSubscription is null)
+        {
+            MessageBox.Show("ابتدا یک اشتراک انتخاب کن.", "حذف اشتراک",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_selectedSubscription.Id == "moghimi-cloud")
+        {
+            MessageBox.Show("گروه ابری مقیمی از داخل برنامه قابل حذف نیست؛ کانفیگ‌های آن با همگام‌سازی بعدی به‌روز می‌شوند.",
+                "اشتراک سایت مقیمی", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var subscription = _selectedSubscription;
+        var linked = Profiles.Where(p => p.SubscriptionId == subscription.Id).ToList();
+        if (_connection.IsRunning && linked.Any(p => p.Id == _connectedProfile?.Id))
+        {
+            MessageBox.Show("یکی از کانفیگ‌های این اشتراک در اتصال فعال استفاده می‌شود. ابتدا اتصال را قطع کن.",
+                "اشتراک در حال استفاده", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"اشتراک «{subscription.Name}» و {linked.Count} کانفیگ مربوط به آن حذف شوند؟",
+            "تأیید حذف اشتراک", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        foreach (var profile in linked) Profiles.Remove(profile);
+        Subscriptions.Remove(subscription);
+        _selectedSubscription = null;
+        SubscriptionsList.SelectedItem = null;
+        if (_selectedProfile is not null && !Profiles.Contains(_selectedProfile))
+            _selectedProfile = Profiles.FirstOrDefault();
+        ProfilesList.SelectedItem = _selectedProfile;
+        SaveState();
+        UpdateDashboard();
+        AppendLog($"Subscription removed: {subscription.Name}");
+    }
+
     private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
     {
         if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)

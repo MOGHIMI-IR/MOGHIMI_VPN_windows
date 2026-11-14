@@ -289,6 +289,7 @@
                                 <WrapPanel>
                                     <Button Click="AddSubscription_Click" Content="+ افزودن اشتراک" Margin="4,0"/>
                                     <Button Click="RefreshSubscription_Click" Content="به‌روزرسانی اشتراک انتخاب‌شده" Margin="4,0"/>
+                                    <Button Click="RemoveSubscription_Click" Content="حذف اشتراک" Margin="4,0"/>
                                     <Button Click="CloudSync_Click" Content="همگام‌سازی سایت مقیمی" Margin="4,0" Background="#39212A" BorderBrush="#8F3846"/>
                                 </WrapPanel>
                             </StackPanel>
