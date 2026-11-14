@@ -22,66 +22,81 @@ public sealed class ConnectionManager : IDisposable
         if (settings.ConnectionMode == "TUN" && !File.Exists(Path.Combine(AppContext.BaseDirectory, "runtime", "wintun.dll")))
             throw new FileNotFoundException("فایل رسمی Wintun کنار هسته پیدا نشد.");
 
-        var logPath = Path.Combine(ProfileStore.Instance.LogDirectory, "sing-box.log");
         var configPath = Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json");
-        var json = SingBoxConfigBuilder.Build(profile, settings, logPath);
-        await File.WriteAllTextAsync(configPath, json, cancellationToken);
-        await ValidateConfigAsync(configPath, cancellationToken);
-
-        var tunnelMode = settings.ConnectionMode == "TUN";
-        var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
-        var startInfo = new ProcessStartInfo {
-            FileName = tunnelMode ? hostPath : _enginePath,
-            Arguments = tunnelMode
-                ? $"\"{_enginePath}\" \"{configPath}\""
-                : $"run -c \"{configPath}\"",
-            WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
-            CreateNoWindow = !tunnelMode,
-            UseShellExecute = tunnelMode,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        if (tunnelMode) startInfo.Verb = "runas";
+        var logPath = Path.Combine(ProfileStore.Instance.LogDirectory, "sing-box.log");
+        var launched = false;
 
         try
         {
-            _process = Process.Start(startInfo) ?? throw new InvalidOperationException("راه‌اندازی هسته VPN ناموفق بود.");
-        }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            throw new OperationCanceledException("درخواست دسترسی مدیر در پنجره UAC لغو شد؛ اتصال شروع نشد.");
-        }
+            cancellationToken.ThrowIfCancellationRequested();
+            var json = SingBoxConfigBuilder.Build(profile, settings, logPath);
+            await File.WriteAllTextAsync(configPath, json, cancellationToken);
+            await ValidateConfigAsync(configPath, cancellationToken);
 
-        if (settings.ConnectionMode == "System Proxy")
-        {
+            var tunnelMode = settings.ConnectionMode == "TUN";
+            var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = tunnelMode ? hostPath : _enginePath,
+                Arguments = tunnelMode
+                    ? $"\"{_enginePath}\" \"{configPath}\""
+                    : $"run -c \"{configPath}\"",
+                WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
+                CreateNoWindow = true,
+                UseShellExecute = tunnelMode,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            if (tunnelMode) startInfo.Verb = "runas";
+
             try
             {
-                await Task.Delay(1200, cancellationToken);
-                if (_process.HasExited) throw new InvalidOperationException("هسته VPN پیش از آماده‌شدن متوقف شد. گزارش اتصال را بررسی کن.");
+                _process = Process.Start(startInfo)
+                    ?? throw new InvalidOperationException("راه‌اندازی هسته VPN ناموفق بود.");
+                launched = true;
+            }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+            {
+                throw new OperationCanceledException("درخواست دسترسی مدیر در پنجره UAC لغو شد؛ اتصال شروع نشد.", ex, cancellationToken);
+            }
+
+            _process.EnableRaisingEvents = true;
+            _process.Exited += (_, _) =>
+            {
+                if (_systemProxyEnabled) SystemProxyController.Restore();
+                _systemProxyEnabled = false;
+                try { File.Delete(configPath); } catch { }
+                EngineExited?.Invoke(this, EventArgs.Empty);
+            };
+
+            if (settings.ConnectionMode == "System Proxy")
+            {
+                await Task.Delay(1000, cancellationToken);
+                if (_process.HasExited)
+                    throw new InvalidOperationException("هسته VPN پیش از آماده‌شدن متوقف شد. گزارش اتصال را بررسی کن.");
+                cancellationToken.ThrowIfCancellationRequested();
                 SystemProxyController.Enable();
                 _systemProxyEnabled = true;
             }
-            catch
+            else
             {
-                await StopAsync();
-                throw;
+                await Task.Delay(1600, cancellationToken);
+                if (_process.HasExited)
+                    throw new InvalidOperationException("راه‌انداز تونل یا هسته sing-box اجرا نشد. گزارش اتصال را بررسی کن.");
+                cancellationToken.ThrowIfCancellationRequested();
             }
-        }
-        else
-        {
-            await Task.Delay(1800, cancellationToken);
-            if (_process.HasExited)
-                throw new InvalidOperationException("هسته VPN اجرا نشد. گزارش اتصال را بررسی کن.");
-        }
 
-        _process.EnableRaisingEvents = true;
-        _process.Exited += (_, _) =>
+            LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
+        }
+        catch
         {
-            if (_systemProxyEnabled) SystemProxyController.Restore();
-            _systemProxyEnabled = false;
-            try { File.Delete(Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json")); } catch { }
-            EngineExited?.Invoke(this, EventArgs.Empty);
-        };
-        LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
+            if (launched && _process is not null)
+                await StopAsync();
+            else
+            {
+                try { File.Delete(configPath); } catch { }
+            }
+            throw;
+        }
     }
 
     private async Task ValidateConfigAsync(string configPath, CancellationToken cancellationToken)
