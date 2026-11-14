@@ -66,9 +66,15 @@ public sealed class ConnectionManager : IDisposable
                 throw new OperationCanceledException("درخواست دسترسی مدیر در پنجره UAC لغو شد؛ اتصال شروع نشد.", ex, cancellationToken);
             }
 
-            _process.EnableRaisingEvents = true;
-            _process.Exited += (_, _) =>
+            var startedProcess = _process;
+            startedProcess.EnableRaisingEvents = true;
+            startedProcess.Exited += (_, _) =>
             {
+                if (ReferenceEquals(_process, startedProcess))
+                {
+                    _process = null;
+                    try { startedProcess.Dispose(); } catch { }
+                }
                 if (_systemProxyEnabled) SystemProxyController.Restore();
                 _systemProxyEnabled = false;
                 try { File.Delete(configPath); } catch { }
@@ -77,11 +83,11 @@ public sealed class ConnectionManager : IDisposable
 
             if (tunnelMode)
             {
-                await WaitForTunInterfaceAsync(_process, TimeSpan.FromSeconds(12), cancellationToken);
+                await WaitForTunInterfaceAsync(startedProcess, TimeSpan.FromSeconds(12), cancellationToken);
             }
             else
             {
-                await WaitForProxyListenerAsync(_process, proxyPort, TimeSpan.FromSeconds(8), cancellationToken);
+                await WaitForProxyListenerAsync(startedProcess, proxyPort, TimeSpan.FromSeconds(8), cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 _systemProxyPort = proxyPort;
                 SystemProxyController.Enable(port: proxyPort);
