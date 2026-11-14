@@ -410,8 +410,8 @@ internal static class PromptDialog
         var input = new TextBox { MinHeight = 42, VerticalContentAlignment = VerticalAlignment.Center };
         panel.Children.Add(input);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0,18,0,0) };
-        var ok = new Button { Content = "تأیید", Width = 100, Margin = new Thickness(5,0), IsDefault = true };
-        var cancel = new Button { Content = "انصراف", Width = 100, Margin = new Thickness(5,0), IsCancel = true };
+        var ok = new Button { Content = "تأیید", Width = 100, Margin = new Thickness(5,0,5,0), IsDefault = true };
+        var cancel = new Button { Content = "انصراف", Width = 100, Margin = new Thickness(5,0,5,0), IsCancel = true };
         ok.Click += (_, _) => window.DialogResult = true;
         buttons.Children.Add(ok); buttons.Children.Add(cancel);
         panel.Children.Add(buttons);
