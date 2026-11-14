@@ -332,6 +332,114 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         halo.Opacity = 0.42;
     }
 
+    private void ManualProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ProfileEditWindow { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        Profiles.Add(dialog.EditedProfile);
+        ProfilesList.SelectedItem = dialog.EditedProfile;
+        SaveState();
+        AppendLog($"Manual profile added: {dialog.EditedProfile.Name}");
+    }
+
+    private void EditProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProfile is null)
+        {
+            MessageBox.Show("ابتدا یک کانفیگ انتخاب کن.", "ویرایش کانفیگ",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var index = Profiles.IndexOf(_selectedProfile);
+        if (index < 0) return;
+        var dialog = new ProfileEditWindow(_selectedProfile) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        Profiles[index] = dialog.EditedProfile;
+        ProfilesList.SelectedItem = dialog.EditedProfile;
+        _selectedProfile = dialog.EditedProfile;
+        SaveState();
+        AppendLog($"Profile edited: {_selectedProfile.Name}");
+    }
+
+    private async void ImportQr_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "خواندن QR کانفیگ",
+            Filter = "تصویر QR (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files (*.*)|*.*",
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            var payload = await Task.Run(() => QrCodeService.DecodeFromImage(dialog.FileName));
+            AddProfiles(ProfileCodec.DecodeMany(payload), Path.GetFileName(dialog.FileName));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "خواندن QR ناموفق بود",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ShareProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProfile is null)
+        {
+            MessageBox.Show("ابتدا یک کانفیگ انتخاب کن.", "اشتراک‌گذاری",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(ProfileCodec.Encode(_selectedProfile));
+            MessageBox.Show("لینک کانفیگ در کلیپ‌بورد کپی شد.", "اشتراک‌گذاری",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "ساخت لینک ناموفق بود",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ExportQr_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProfile is null)
+        {
+            MessageBox.Show("ابتدا یک کانفیگ انتخاب کن.", "خروجی QR",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            var payload = ProfileCodec.Encode(_selectedProfile);
+            var bytes = QrCodeService.CreatePng(payload);
+            var dialog = new SaveFileDialog
+            {
+                Title = "ذخیره تصویر QR",
+                FileName = $"{_selectedProfile.Name.Replace(Path.GetInvalidFileNameChars(), '_')}.png",
+                Filter = "PNG image (*.png)|*.png",
+                DefaultExt = ".png",
+                AddExtension = true
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            File.WriteAllBytes(dialog.FileName, bytes);
+            AppendLog($"QR exported: {_selectedProfile.Name}");
+            MessageBox.Show("تصویر QR ذخیره شد.", "خروجی QR",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "ساخت QR ناموفق بود",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void AddLink_Click(object sender, RoutedEventArgs e)
     {
         var text = PromptDialog.Show(this, "افزودن کانفیگ", "لینک V2Ray یا چند لینک را وارد کن:");
