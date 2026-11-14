@@ -431,7 +431,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ManualProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
             MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -447,7 +447,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void EditProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
             MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -642,7 +642,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ScanLatency_Click(object sender, RoutedEventArgs e)
     {
-        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy || _cloudSyncRunning || _connection.IsRunning) return;
+        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning || _connection.IsRunning) return;
         var button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _manualScanBusy = true;
