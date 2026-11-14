@@ -109,7 +109,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ? (ProfileStore.Instance.State.Settings.ConnectionMode == "TUN" ? "VPN فعال" : "Proxy فعال")
             : "قطع";
         ConnectButton.Content = _isConnected ? "قطع اتصال" : "اتصال امن";
-        HeaderStatus.Text = _isConnected ? "تونل فعال" : "آماده اتصال";
+        HeaderStatus.Text = _isConnected ? "متصل" : "آماده اتصال";
         StatusDot.Fill = _isConnected ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Goldenrod;
         OnPropertyChanged(nameof(Profiles));
     }
@@ -133,6 +133,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _connectScanCts?.Cancel();
             ProbeStatus.Text = "درخواست لغو ثبت شد…";
+            return;
+        }
+
+        if (_cloudSyncRunning)
+        {
+            MessageBox.Show("همگام‌سازی کانفیگ‌های سایت هنوز تمام نشده؛ بعد از پایان دریافت دوباره اتصال را بزن.",
+                "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
