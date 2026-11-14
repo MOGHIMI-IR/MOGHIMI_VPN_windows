@@ -181,7 +181,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_connectionBusy)
         {
             _connectScanCts?.Cancel();
-            ProbeStatus.Text = "درخواست لغو ثبت شد…";
+            if (_connectScanCts is not null)
+                ProbeStatus.Text = "درخواست لغو ثبت شد…";
             return;
         }
 
@@ -194,11 +195,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (_connection.IsRunning)
         {
-            await _connection.StopAsync();
-            _connectedProfile = null;
-            _isConnected = false;
-            SetDisconnected("اتصال قطع شد");
-            UpdateDashboard();
+            _connectionBusy = true;
+            ConnectButton.IsEnabled = false;
+            ConnectionStatus.Text = "در حال قطع اتصال…";
+            HeaderStatus.Text = "در حال قطع";
+            ProbeStatus.Text = "در حال پاک‌سازی مسیر شبکه";
+            try
+            {
+                await _connection.StopAsync();
+                _connectedProfile = null;
+                _isConnected = false;
+                SetDisconnected("اتصال قطع شد");
+                UpdateDashboard();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Disconnect failed: " + ex.Message);
+                MessageBox.Show(ex.Message, "قطع اتصال ناموفق بود",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _connectionBusy = false;
+                ConnectButton.IsEnabled = true;
+                if (_closeAfterBusyOperation)
+                {
+                    _closeAfterBusyOperation = false;
+                    Close();
+                }
+            }
             return;
         }
 
