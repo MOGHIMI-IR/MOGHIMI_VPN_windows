@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+publish/
+artifacts/
+*.user
+*.suo
+*.pfx
+*.p12
+*.cer
+*.key
+*.pem
+*.log

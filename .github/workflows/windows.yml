@@ -1,0 +1,143 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download and verify official sing-box
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip"
+          $expected = "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sing-box.zip"
+          $actual = (Get-FileHash "$env:RUNNER_TEMP\sing-box.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "sing-box SHA-256 verification failed: $actual" }
+          Expand-Archive "$env:RUNNER_TEMP\sing-box.zip" "$env:RUNNER_TEMP\sing-box" -Force
+          $engine = Get-ChildItem "$env:RUNNER_TEMP\sing-box" -Recurse -Filter "sing-box.exe" | Select-Object -First 1
+          if (-not $engine) { throw "sing-box.exe was not found in the verified archive." }
+          New-Item -ItemType Directory -Force "runtime" | Out-Null
+          Copy-Item $engine.FullName "runtime\sing-box.exe" -Force
+          if (Test-Path "$env:RUNNER_TEMP\sing-box\LICENSE") {
+            Copy-Item "$env:RUNNER_TEMP\sing-box\LICENSE" "runtime\LICENSE-sing-box.txt" -Force
+          }
+
+      - name: Download and verify official Wintun
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://www.wintun.net/builds/wintun-0.14.1.zip"
+          $expected = "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\wintun.zip"
+          $actual = (Get-FileHash "$env:RUNNER_TEMP\wintun.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Wintun SHA-256 verification failed: $actual" }
+          Expand-Archive "$env:RUNNER_TEMP\wintun.zip" "$env:RUNNER_TEMP\wintun" -Force
+          $dll = Get-ChildItem "$env:RUNNER_TEMP\wintun" -Recurse -Filter "wintun.dll" |
+            Where-Object { $_.FullName -match "[\\/]amd64[\\/]wintun\.dll$" } |
+            Select-Object -First 1
+          if (-not $dll) { throw "Official AMD64 wintun.dll was not found." }
+          Copy-Item $dll.FullName "runtime\wintun.dll" -Force
+          $signature = Get-AuthenticodeSignature "runtime\wintun.dll"
+          if ($signature.Status -ne "Valid") { throw "Wintun Authenticode signature is not valid: $($signature.Status)" }
+          $license = Get-ChildItem "$env:RUNNER_TEMP\wintun" -Recurse -File |
+            Where-Object { $_.Name -match "^(LICENSE|COPYING)(\.txt)?$" } |
+            Select-Object -First 1
+          if ($license) { Copy-Item $license.FullName "runtime\LICENSE-wintun.txt" -Force }
+
+      - name: Restore and publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
+          dotnet restore MoghimiVPN.sln
+          dotnet publish src/MoghimiVPN/MoghimiVPN.csproj -c Release -r win-x64 --self-contained true -p:Version=$version -p:PublishSingleFile=false -o publish
+          New-Item -ItemType Directory -Force "publish\runtime" | Out-Null
+          Copy-Item "runtime\sing-box.exe" "publish\runtime\sing-box.exe" -Force
+          Copy-Item "runtime\wintun.dll" "publish\runtime\wintun.dll" -Force
+          if (Test-Path "runtime\LICENSE-sing-box.txt") { Copy-Item "runtime\LICENSE-sing-box.txt" "publish\runtime\" -Force }
+          if (Test-Path "runtime\LICENSE-wintun.txt") { Copy-Item "runtime\LICENSE-wintun.txt" "publish\runtime\" -Force }
+          & "runtime\sing-box.exe" version
+          if ($LASTEXITCODE -ne 0) { throw "sing-box runtime smoke test failed." }
+          if (!(Test-Path "publish\MoghimiVPN.exe")) { throw "WPF application executable missing." }
+
+      - name: Optional Authenticode signing
+        shell: pwsh
+        env:
+          WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGN_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGN_PFX_PASSWORD)) {
+            Write-Host "No public code-signing certificate configured; keeping CI artifacts unsigned."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "moghimi-codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGN_PFX_BASE64))
+          $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "Windows SDK SignTool was not found." }
+          foreach ($file in @("publish\MoghimiVPN.exe", "publish\MoghimiVPN.dll")) {
+            & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $file
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $file" }
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force "artifacts" | Out-Null
+          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler was not found." }
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
+          & $iscc "/DAppVersion=$version" "installer\MoghimiVPN.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed." }
+          Compress-Archive -Path "publish\*" -DestinationPath "artifacts\MoghimiVPN-Windows-x64-portable.zip" -Force
+
+      - name: Sign installer (optional)
+        if: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' && secrets.WINDOWS_SIGN_PFX_PASSWORD != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "moghimi-codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGN_PFX_BASE64))
+          $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } | Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 "artifacts\MoghimiVPN-Setup-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Installer signing failed." }
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoghimiVPN-Windows-x64
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
