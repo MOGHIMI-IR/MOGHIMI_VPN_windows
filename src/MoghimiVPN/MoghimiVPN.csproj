@@ -25,5 +25,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\moghimi-vpn-icon.png" />
+    <Resource Include="Assets\Fonts\Arad-Regular.ttf" />
+    <Resource Include="Assets\Fonts\Arad-Bold.ttf" />
+    <Resource Include="Assets\Fonts\Arad-ExtraBold.ttf" />
+    <Resource Include="Assets\Fonts\OFL.txt" />
   </ItemGroup>
 </Project>
