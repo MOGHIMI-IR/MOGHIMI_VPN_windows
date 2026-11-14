@@ -343,7 +343,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         halo.Opacity = 0.26;
     }
 
-    private void ManualProfile_Click(object sender, RoutedEventArgs e)    private void ManualProfile_Click(object sender, RoutedEventArgs e)
+    private void ManualProfile_Click(object sender, RoutedEventArgs e)
     {
         if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
@@ -600,7 +600,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void AddSubscription_Click(object sender, RoutedEventArgs e)    private void AddSubscription_Click(object sender, RoutedEventArgs e)
+    private void AddSubscription_Click(object sender, RoutedEventArgs e)
     {
         if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
