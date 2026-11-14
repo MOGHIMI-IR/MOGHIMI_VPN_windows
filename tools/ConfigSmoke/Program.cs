@@ -191,6 +191,54 @@ Directory.CreateDirectory(tempRoot);
 
 try
 {
+    foreach (var dnsAddress in new[]
+    {
+        "udp://1.1.1.1:5353",
+        "tls://1.1.1.1:853",
+        "https://dns.google/dns-query"
+    })
+    {
+        foreach (var mode in new[] { "TUN", "System Proxy" })
+        {
+            var dnsPath = Path.Combine(tempRoot, $"dns-{mode.Replace(" ", "-")}-{Guid.NewGuid():N}.json");
+            try
+            {
+                var settings = new AppSettings
+                {
+                    ConnectionMode = mode,
+                    DnsServer = dnsAddress,
+                    BlockAds = true,
+                    BypassLan = true
+                };
+                var json = SingBoxConfigBuilder.Build(profiles[0], settings, Path.Combine(tempRoot, "dns-smoke.log"));
+                await File.WriteAllTextAsync(dnsPath, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                var start = new ProcessStartInfo
+                {
+                    FileName = engine,
+                    Arguments = $"check -c \"{dnsPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using var process = Process.Start(start)
+                    ?? throw new InvalidOperationException("Could not start DNS config validation.");
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                var result = (await stdout) + Environment.NewLine + (await stderr);
+                if (process.ExitCode != 0)
+                    throw new InvalidOperationException(result.Trim());
+                Console.WriteLine($"PASS  DNS {dnsAddress,-30} {mode}");
+            }
+            catch (Exception error)
+            {
+                failures.Add($"DNS {dnsAddress} / {mode}: {error.Message}");
+                Console.Error.WriteLine($"FAIL  DNS {dnsAddress} / {mode}: {error.Message}");
+            }
+        }
+    }
+
     foreach (var profile in profiles)
     {
         try
