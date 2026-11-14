@@ -47,10 +47,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
         _logTimer.Tick += (_, _) => RefreshLogs();
         _sessionTimer.Tick += (_, _) => UpdateSessionClock();
-        _logTimer.Start();
-        _cloudTimer.Tick += async (_, _) => await SyncCloudAsync(silent: true);
-        _cloudTimer.Start();
-        Loaded += async (_, _) => await SyncCloudAsync(silent: true);
+        var startupSmokeTest = Environment.GetCommandLineArgs().Any(argument =>
+            string.Equals(argument, "--startup-smoke-test", StringComparison.OrdinalIgnoreCase));
+        if (!startupSmokeTest)
+        {
+            _logTimer.Start();
+            _cloudTimer.Tick += async (_, _) => await SyncCloudAsync(silent: true);
+            _cloudTimer.Start();
+            Loaded += async (_, _) => await SyncCloudAsync(silent: true);
+        }
     }
 
     private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)

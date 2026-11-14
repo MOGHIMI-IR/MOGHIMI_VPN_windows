@@ -77,7 +77,8 @@ jobs:
           dotnet publish src/TunnelHost/MoghimiVPN.TunnelHost.csproj -c Release -r win-x64 --self-contained true -p:Version=$version -p:PublishSingleFile=false -o publish-host
           if ($LASTEXITCODE -ne 0) { throw "Tunnel host publish failed." }
           New-Item -ItemType Directory -Force "publish" | Out-Null
-          Copy-Item -Path "publish-host\*" -Destination "publish" -Recurse -Force
+          New-Item -ItemType Directory -Force "publish\tunnel-host" | Out-Null
+          Copy-Item -Path "publish-host\*" -Destination "publish\tunnel-host" -Recurse -Force
           New-Item -ItemType Directory -Force "publish\runtime" | Out-Null
           Copy-Item "runtime\sing-box.exe" "publish\runtime\sing-box.exe" -Force
           Copy-Item "runtime\wintun.dll" "publish\runtime\wintun.dll" -Force
@@ -90,7 +91,7 @@ jobs:
           dotnet run --project tools/ConfigSmoke/MoghimiVPN.ConfigSmoke.csproj --configuration Release -- "runtime\sing-box.exe"
           if ($LASTEXITCODE -ne 0) { throw "A protocol configuration failed sing-box validation." }
           if (!(Test-Path "publish\MoghimiVPN.exe")) { throw "WPF application executable missing." }
-          if (!(Test-Path "publish\MoghimiVPN.TunnelHost.exe")) { throw "Tunnel host executable missing." }
+          if (!(Test-Path "publish\tunnel-host\MoghimiVPN.TunnelHost.exe")) { throw "Tunnel host executable missing." }
 
       - name: Optional Authenticode signing
         shell: pwsh
@@ -107,9 +108,36 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGN_PFX_BASE64))
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } | Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $signtool) { throw "Windows SDK SignTool was not found." }
-          foreach ($file in @("publish\MoghimiVPN.exe", "publish\MoghimiVPN.dll", "publish\MoghimiVPN.TunnelHost.exe", "publish\MoghimiVPN.TunnelHost.dll")) {
+          foreach ($file in @("publish\MoghimiVPN.exe", "publish\MoghimiVPN.dll", "publish\tunnel-host\MoghimiVPN.TunnelHost.exe", "publish\tunnel-host\MoghimiVPN.TunnelHost.dll")) {
             & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $file
             if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $file" }
+          }
+
+      - name: Launch published Windows app and helper smoke tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $app = (Resolve-Path "publish\MoghimiVPN.exe").Path
+          $process = Start-Process -FilePath $app -ArgumentList "--startup-smoke-test" -PassThru
+          if (-not $process.WaitForExit(20000)) {
+            try { $process.Kill($true) } catch {}
+            $log = Join-Path $env:LOCALAPPDATA "MoghimiVPN\logs\startup.log"
+            if (Test-Path $log) { Get-Content $log -Tail 100 | Write-Host }
+            throw "The published WPF app did not finish its startup smoke test within 20 seconds."
+          }
+          if ($process.ExitCode -ne 0) {
+            $log = Join-Path $env:LOCALAPPDATA "MoghimiVPN\logs\startup.log"
+            if (Test-Path $log) { Get-Content $log -Tail 100 | Write-Host }
+            throw "The published WPF app startup smoke test failed with exit code $($process.ExitCode)."
+          }
+          $helper = (Resolve-Path "publish\tunnel-host\MoghimiVPN.TunnelHost.exe").Path
+          $helperProcess = Start-Process -FilePath $helper -PassThru
+          if (-not $helperProcess.WaitForExit(10000)) {
+            try { $helperProcess.Kill($true) } catch {}
+            throw "The published tunnel host did not exit for its invalid-arguments smoke test."
+          }
+          if ($helperProcess.ExitCode -ne 2) {
+            throw "The published tunnel host runtime failed its smoke test with exit code $($helperProcess.ExitCode)."
           }
 
       - name: Build installer
