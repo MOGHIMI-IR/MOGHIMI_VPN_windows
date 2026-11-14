@@ -195,6 +195,7 @@
                                 </StackPanel>
                                 <WrapPanel HorizontalAlignment="Left">
                                     <Button Click="AddLink_Click" Margin="4,0" Content="+ افزودن لینک"/>
+                                    <Button Click="PasteClipboard_Click" Margin="4,0" Content="چسباندن از کلیپ‌بورد"/>
                                     <Button Click="ImportFile_Click" Margin="4,0" Content="واردکردن فایل"/>
                                     <Button Click="ScanLatency_Click" Margin="4,0" Content="◉ تست پینگ"/>
                                     <Button Click="RemoveProfile_Click" Margin="4,0" Content="حذف انتخاب‌شده"/>
