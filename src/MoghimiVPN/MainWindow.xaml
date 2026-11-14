@@ -120,20 +120,40 @@
                                     <TextBlock Text="اتصال امن، با کنترل کامل" FontSize="22" FontWeight="Bold" Margin="0,8,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Button x:Name="ConnectButton" Click="ConnectButton_Click" Width="178" Height="178" Padding="0" Background="#E63946" BorderBrush="#F36B75" BorderThickness="2">
+                                    <Button x:Name="ConnectButton" Click="ConnectButton_Click" Width="178" Height="178" Padding="0" Background="Transparent" BorderThickness="0" RenderTransformOrigin="0.5,0.5">
+                                        <Button.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                        </Button.RenderTransform>
+                                        <Button.Effect>
+                                            <DropShadowEffect Color="#E63946" BlurRadius="30" ShadowDepth="0" Opacity="0.28"/>
+                                        </Button.Effect>
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Grid>
-                                                    <Ellipse Fill="#3A1B25" Stroke="#612530" StrokeThickness="2"/>
-                                                    <Ellipse Margin="10" Fill="#E63946"/>
-                                                    <Ellipse Margin="24" Stroke="#FFBEC4" StrokeThickness="1" Opacity="0.35"/>
+                                                    <Ellipse x:Name="OrbPulse" Fill="#66E63946" Opacity="0.42" RenderTransformOrigin="0.5,0.5">
+                                                        <Ellipse.RenderTransform>
+                                                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                                        </Ellipse.RenderTransform>
+                                                    </Ellipse>
+                                                    <Ellipse Margin="10" Fill="#321720" Stroke="#71303C" StrokeThickness="1.5"/>
+                                                    <Ellipse Margin="18">
+                                                        <Ellipse.Fill>
+                                                            <RadialGradientBrush>
+                                                                <GradientStop Color="#FFFB6671" Offset="0"/>
+                                                                <GradientStop Color="#FFE63946" Offset="0.60"/>
+                                                                <GradientStop Color="#FF9C2333" Offset="1"/>
+                                                            </RadialGradientBrush>
+                                                        </Ellipse.Fill>
+                                                    </Ellipse>
+                                                    <Ellipse Margin="29" Stroke="#FFFFC8CC" StrokeThickness="1" Opacity="0.38"/>
                                                     <TextBlock Text="⏻" FontSize="72" FontWeight="Light" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Grid>
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,17,0,4"/>
-                                    <TextBlock Text="برای شروع اتصال، دکمه را بزن" Foreground="#8996A9" FontSize="11" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,15,0,4"/>
+                                    <TextBlock x:Name="ProbeStatus" Text="آماده اتصال هوشمند" Foreground="#8996A9" FontSize="11" HorizontalAlignment="Center"/>
+                                    <ProgressBar x:Name="ProbeProgress" Width="230" Height="4" Margin="0,9,0,0" Maximum="100" Value="0" Visibility="Collapsed" Background="#222B38" Foreground="#E63946" BorderThickness="0"/>
                                 </StackPanel>
                                 <Grid Grid.Row="2">
                                     <TextBlock Text="حالت اتصال" Foreground="#8D98A9" VerticalAlignment="Center"/>
@@ -255,10 +275,10 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="حالت اتصال" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="TUN تمام ترافیک دستگاه را از مسیر تونل می‌فرستد. System Proxy فقط برنامه‌هایی را پوشش می‌دهد که از پراکسی سیستم پیروی می‌کنند." Foreground="#9AA5B5" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                    <TextBlock Text="VPN Mode ترافیک دستگاه را از تونل مجازی عبور می‌دهد و برای فعال‌سازی UAC ویندوز می‌خواهد. Proxy Mode فقط برنامه‌هایی را پوشش می‌دهد که از پراکسی سیستم پیروی می‌کنند؛ تنظیم قبلی پس از قطع اتصال بازگردانده می‌شود." Foreground="#9AA5B5" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <ComboBox x:Name="ConnectionModeCombo" Width="220" HorizontalAlignment="Right" SelectedIndex="0">
-                                        <ComboBoxItem Content="TUN"/>
-                                        <ComboBoxItem Content="System Proxy"/>
+                                        <ComboBoxItem Content="VPN Mode — کل سیستم" Tag="TUN"/>
+                                        <ComboBoxItem Content="Proxy Mode — برنامه‌های سازگار" Tag="System Proxy"/>
                                     </ComboBox>
                                 </StackPanel>
                             </Border>
@@ -274,8 +294,8 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="دسترسی‌ها و شفافیت" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="• TUN: دسترسی مدیر فقط هنگام اتصال و از طریق UAC رسمی ویندوز." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
-                                    <TextBlock Text="• System Proxy: تنظیمات کاربر فعلی؛ مقدار قبلی هنگام قطع اتصال بازگردانده می‌شود." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• VPN Mode: دسترسی مدیر فقط هنگام اتصال و از طریق UAC رسمی ویندوز." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• Proxy Mode: تنظیمات کاربر فعلی؛ مقدار قبلی هنگام قطع اتصال بازگردانده می‌شود." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
                                     <TextBlock Text="• برنامه رمز ویندوز، مرورگر، مخاطبان یا اطلاعات حساب را نمی‌خواند." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
                                     <TextBlock Text="• Defender خاموش نمی‌شود و هیچ استثنایی به آنتی‌ویروس اضافه نمی‌شود." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
                                 </StackPanel>
