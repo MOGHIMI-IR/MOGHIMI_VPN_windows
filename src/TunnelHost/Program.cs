@@ -44,7 +44,7 @@ internal static class Program
             var startInfo = new ProcessStartInfo
             {
                 FileName = enginePath,
-                Arguments = $"run -c \\"{configPath}\\"",
+                Arguments = $"run -c \"{configPath}\"",
                 WorkingDirectory = Path.GetDirectoryName(enginePath)!,
                 UseShellExecute = false,
                 CreateNoWindow = false
