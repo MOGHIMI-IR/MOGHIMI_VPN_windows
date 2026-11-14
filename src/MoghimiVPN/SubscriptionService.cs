@@ -9,7 +9,7 @@ public sealed class SubscriptionService
     private const int MaxResponseBytes = 4 * 1024 * 1024;
     private const int MaxProfiles = 2000;
 
-    private static readonly HttpClient Client = new(
+    private static readonly HttpClient SharedClient = new(
         new SocketsHttpHandler
         {
             AllowAutoRedirect = true,
@@ -21,6 +21,11 @@ public sealed class SubscriptionService
     {
         Timeout = TimeSpan.FromSeconds(25)
     };
+
+    private readonly HttpClient _client;
+
+    public SubscriptionService(HttpClient? client = null) =>
+        _client = client ?? SharedClient;
 
     public async Task<List<ProxyProfile>> FetchAsync(
         SubscriptionItem subscription,
@@ -36,7 +41,7 @@ public sealed class SubscriptionService
         request.Headers.Accept.ParseAdd("text/plain");
         request.Headers.Accept.ParseAdd("application/octet-stream");
 
-        using var response = await Client.SendAsync(
+        using var response = await _client.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
