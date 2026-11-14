@@ -28,7 +28,7 @@ public sealed class ConnectionManager : IDisposable
 
         var startInfo = new ProcessStartInfo {
             FileName = _enginePath,
-            Arguments = $"run -c \\"{configPath}\\"",
+            Arguments = $"run -c \"{configPath}\"",
             WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
             CreateNoWindow = true,
             UseShellExecute = settings.ConnectionMode == "TUN"
@@ -88,7 +88,7 @@ public sealed class ConnectionManager : IDisposable
     {
         var start = new ProcessStartInfo {
             FileName = _enginePath,
-            Arguments = $"check -c \\"{configPath}\\"",
+            Arguments = $"check -c \"{configPath}\"",
             WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
             UseShellExecute = false,
             CreateNoWindow = true,
