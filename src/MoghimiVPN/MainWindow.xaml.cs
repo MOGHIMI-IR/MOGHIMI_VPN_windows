@@ -419,10 +419,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var payload = ProfileCodec.Encode(_selectedProfile);
             var bytes = QrCodeService.CreatePng(payload);
+            var safeName = new string(_selectedProfile.Name
+                .Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)
+                .ToArray());
             var dialog = new SaveFileDialog
             {
                 Title = "ذخیره تصویر QR",
-                FileName = $"{_selectedProfile.Name.Replace(Path.GetInvalidFileNameChars(), '_')}.png",
+                FileName = $"{safeName}.png",
                 Filter = "PNG image (*.png)|*.png",
                 DefaultExt = ".png",
                 AddExtension = true
