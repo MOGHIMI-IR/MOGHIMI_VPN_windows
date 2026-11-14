@@ -11,6 +11,7 @@ public sealed class CloudSync
     private const string PublishableKey = "sb_publishable_9jauFOO0mFzTSs5rtI2Orw_ZekPGGdt";
     private const string StorageBucket = "v2ray-files";
     private const int MaxResponseBytes = 4 * 1024 * 1024;
+    private const int MaxAggregateBytes = 16 * 1024 * 1024;
     private const int MaxEntries = 2000;
     private const int MaxProfiles = 2000;
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(18) };
@@ -37,6 +38,7 @@ public sealed class CloudSync
             throw new InvalidOperationException($"فهرست ابری بیش از {MaxEntries} ورودی دارد و برای جلوگیری از مصرف غیرعادی منابع رد شد.");
         var imported = new List<ProxyProfile>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        long aggregatePayloadBytes = 0;
 
         foreach (var entry in entries)
         {
@@ -47,6 +49,10 @@ public sealed class CloudSync
                 "file" when !string.IsNullOrWhiteSpace(entry.file_path) => await DownloadPrivateFileAsync(entry.file_path!, cancellationToken),
                 _ => ""
             };
+            aggregatePayloadBytes += Encoding.UTF8.GetByteCount(payload);
+            if (aggregatePayloadBytes > MaxAggregateBytes)
+                throw new InvalidOperationException("حجم کل کانفیگ‌های ابری از سقف 16 مگابایت بیشتر شد؛ کانفیگ‌های قبلی حفظ می‌شوند.");
+
             foreach (var profile in ProfileCodec.DecodeMany(payload))
             {
                 if (profile.Name == "سرور جدید" && !string.IsNullOrWhiteSpace(entry.title))
@@ -95,7 +101,7 @@ public sealed class CloudSync
         signRequest.Content = new StringContent("{\"expiresIn\":600}", System.Text.Encoding.UTF8, "application/json");
         using var signResponse = await Client.SendAsync(signRequest, cancellationToken);
         signResponse.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await signResponse.Content.ReadAsStringAsync(cancellationToken));
+        using var doc = JsonDocument.Parse(await ReadBoundedTextAsync(signResponse.Content, 64 * 1024, cancellationToken));
         if (!doc.RootElement.TryGetProperty("signedURL", out var signed) || string.IsNullOrWhiteSpace(signed.GetString()))
             throw new InvalidOperationException("ساخت لینک موقت دریافت فایل کانفیگ ناموفق بود.");
         var signedPath = signed.GetString()!;
