@@ -63,7 +63,7 @@ public sealed class CloudSync
         using var signRequest = new HttpRequestMessage(HttpMethod.Post, signUrl);
         signRequest.Headers.TryAddWithoutValidation("apikey", PublishableKey);
         signRequest.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
-        signRequest.Content = new StringContent("{\\"expiresIn\\":600}", System.Text.Encoding.UTF8, "application/json");
+        signRequest.Content = new StringContent("{\"expiresIn\":600}", System.Text.Encoding.UTF8, "application/json");
         using var signResponse = await Client.SendAsync(signRequest, cancellationToken);
         signResponse.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await signResponse.Content.ReadAsStringAsync(cancellationToken));
