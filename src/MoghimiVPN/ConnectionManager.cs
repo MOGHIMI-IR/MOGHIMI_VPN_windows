@@ -46,7 +46,7 @@ public sealed class ConnectionManager : IDisposable
             {
                 FileName = tunnelMode ? hostPath : _enginePath,
                 Arguments = tunnelMode
-                    ? $"\"{_enginePath}\" \"{configPath}\""
+                    ? $"\"{_enginePath}\" \"{configPath}\" {Environment.ProcessId}"
                     : $"run -c \"{configPath}\"",
                 WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
                 CreateNoWindow = true,
