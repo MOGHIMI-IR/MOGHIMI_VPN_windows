@@ -44,15 +44,16 @@ public sealed class ConnectionManager : IDisposable
             var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
             var startInfo = new ProcessStartInfo
             {
-                FileName = tunnelMode ? hostPath : _enginePath,
-                Arguments = tunnelMode
-                    ? $"\"{_enginePath}\" \"{configPath}\" {Environment.ProcessId}"
-                    : $"run -c \"{configPath}\"",
+                // The host watches the desktop parent in both modes so an app crash cannot
+                // leave an orphaned sing-box process or a stale local proxy listener.
+                FileName = hostPath,
+                Arguments = $"\"{_enginePath}\" \"{configPath}\" {Environment.ProcessId}",
                 WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
-                CreateNoWindow = true,
-                UseShellExecute = tunnelMode,
+                CreateNoWindow = false,
+                UseShellExecute = true,
                 WindowStyle = ProcessWindowStyle.Hidden
             };
+            // Only system-wide TUN needs elevation. Proxy Mode remains a normal user process.
             if (tunnelMode) startInfo.Verb = "runas";
 
             try
