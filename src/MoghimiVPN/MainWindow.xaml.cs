@@ -15,6 +15,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly SubscriptionService _subscriptions = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromHours(6) };
+    private readonly DispatcherTimer _sessionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private DateTimeOffset? _connectedSince;
     private bool _cloudSyncRunning;
     private bool _connectionBusy;
     private CancellationTokenSource? _connectScanCts;
@@ -44,6 +46,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _connection.EngineExited += (_, _) => Dispatcher.Invoke(() => SetDisconnected("اتصال توسط هسته متوقف شد"));
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
         _logTimer.Tick += (_, _) => RefreshLogs();
+        _sessionTimer.Tick += (_, _) => UpdateSessionClock();
         _logTimer.Start();
         _cloudTimer.Tick += async (_, _) => await SyncCloudAsync(silent: true);
         _cloudTimer.Start();
@@ -148,10 +151,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(Profiles));
     }
 
+    private void UpdateSessionClock()
+    {
+        if (SessionUptime is null) return;
+        if (!_isConnected || _connectedSince is null)
+        {
+            SessionUptime.Text = "00:00:00";
+            SessionUptime.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(141, 152, 169));
+            return;
+        }
+
+        var elapsed = DateTimeOffset.Now - _connectedSince.Value;
+        SessionUptime.Text = elapsed.TotalDays >= 1
+            ? $"{(int)elapsed.TotalDays:00}:{elapsed.Hours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+            : $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+        SessionUptime.Foreground = System.Windows.Media.Brushes.LightGreen;
+    }
+
     private void SetDisconnected(string message)
     {
         _isConnected = false;
         _connectedProfile = null;
+        _connectedSince = null;
+        _sessionTimer.Stop();
+        UpdateSessionClock();
         ConnectionStatus.Text = message;
         ProbeStatus.Text = "آماده اتصال هوشمند";
         ProbeProgress.Visibility = Visibility.Collapsed;
@@ -298,6 +322,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             await _connection.StartAsync(chosen, ProfileStore.Instance.State.Settings, token);
 
             _connectedProfile = chosen;
+            _connectedSince = DateTimeOffset.Now;
+            _sessionTimer.Start();
+            UpdateSessionClock();
             _isConnected = true;
             ConnectionStatus.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN"
                 ? "VPN فعال"
@@ -936,6 +963,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _closeAfterDisconnect = true;
             _logTimer.Stop();
             _cloudTimer.Stop();
+            _sessionTimer.Stop();
             IsEnabled = false;
             try { await _connection.StopAsync(); }
             finally
@@ -949,6 +977,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _logTimer.Stop();
         _cloudTimer.Stop();
+        _sessionTimer.Stop();
         _connection.Dispose();
         SystemProxyController.Restore();
     }
