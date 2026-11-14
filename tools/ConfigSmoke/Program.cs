@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 using MoghimiVPN;
 
@@ -52,6 +54,53 @@ var profiles = new List<ProxyProfile>
         PrivateKey = sampleKey, PeerPublicKey = sampleKey, LocalAddress = "10.0.0.2/32",
         AllowedIps = "0.0.0.0/0,::/0", Mtu = 1408 }
 };
+
+var subscriptionPassed = false;
+try
+{
+    var subscription = new SubscriptionItem
+    {
+        Id = "smoke-subscription",
+        Name = "CI subscription",
+        Url = "https://subscription.example.test/config"
+    };
+    using var http = new HttpClient(new SmokeResponseHandler(ProfileCodec.Encode(profiles[0])));
+    var fetched = await new SubscriptionService(http).FetchAsync(subscription);
+    subscriptionPassed = fetched.Count == 1 &&
+                         fetched[0].SubscriptionId == subscription.Id &&
+                         fetched[0].Protocol == profiles[0].Protocol;
+    if (!subscriptionPassed) throw new InvalidOperationException("Subscription parser did not preserve the profile.");
+    Console.WriteLine("PASS  subscription  bounded HTTPS fetch + profile association");
+}
+catch (Exception error)
+{
+    failures.Add("subscription: " + error.Message);
+    Console.Error.WriteLine("FAIL  subscription: " + error.Message);
+}
+
+try
+{
+    var subscription = new SubscriptionItem
+    {
+        Id = "downgrade-subscription",
+        Name = "HTTPS downgrade test",
+        Url = "https://subscription.example.test/config"
+    };
+    using var http = new HttpClient(new SmokeResponseHandler(
+        ProfileCodec.Encode(profiles[0]),
+        finalUri: new Uri("http://subscription.example.test/config")));
+    await new SubscriptionService(http).FetchAsync(subscription);
+    throw new InvalidOperationException("An HTTPS-to-HTTP downgrade was accepted.");
+}
+catch (InvalidOperationException error) when (error.Message.Contains("HTTPS", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("PASS  subscription  HTTPS downgrade blocked");
+}
+catch (Exception error)
+{
+    failures.Add("subscription downgrade: " + error.Message);
+    Console.Error.WriteLine("FAIL  subscription downgrade: " + error.Message);
+}
 
 var tempRoot = Path.Combine(Path.GetTempPath(), "MoghimiVPN-ConfigSmoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempRoot);
@@ -166,3 +215,28 @@ if (failures.Count > 0)
     return 1;
 }
 return 0;
+
+
+internal sealed class SmokeResponseHandler : HttpMessageHandler
+{
+    private readonly string _body;
+    private readonly Uri? _finalUri;
+
+    public SmokeResponseHandler(string body, Uri? finalUri = null)
+    {
+        _body = body;
+        _finalUri = finalUri;
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(_body, Encoding.UTF8, "text/plain"),
+            RequestMessage = new HttpRequestMessage(request.Method, _finalUri ?? request.RequestUri)
+        };
+        return Task.FromResult(response);
+    }
+}
