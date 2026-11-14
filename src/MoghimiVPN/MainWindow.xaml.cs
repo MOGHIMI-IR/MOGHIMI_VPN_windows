@@ -22,6 +22,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _manualScanBusy;
     private bool _closeAfterBusyOperation;
     private ProxyProfile? _selectedProfile;
+    private ProxyProfile? _connectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
 
@@ -103,6 +104,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
+        if (_connection.IsRunning || _connectionBusy)
+        {
+            MessageBox.Show("برای تغییر DNS، مسیریابی یا حالت VPN/Proxy ابتدا اتصال را قطع کن. تغییرات فقط در اتصال بعدی اعمال می‌شوند.",
+                "تنظیمات در حال استفاده", MessageBoxButton.OK, MessageBoxImage.Information);
+            LoadSettings();
+            return;
+        }
         SaveSettingsFromUI();
         MessageBox.Show("تنظیمات ذخیره شد.", "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
     }
@@ -121,7 +129,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void UpdateDashboard()
     {
-        var selected = _selectedProfile ?? Profiles.FirstOrDefault();
+        var selected = (_connection.IsRunning ? _connectedProfile : null)
+            ?? _selectedProfile
+            ?? Profiles.FirstOrDefault();
         SelectedProfileName.Text = selected?.Name ?? "هنوز سروری انتخاب نشده";
         SelectedProfileEndpoint.Text = selected is null ? "از بخش کانفیگ‌ها یک سرور اضافه کن" : $"{selected.Protocol.ToUpperInvariant()}  ·  {selected.Server}:{selected.Port}";
         SelectedProfileLatency.Text = selected is null || selected.LatencyMs < 0 ? "پینگ آزمایش نشده" : $"{selected.LatencyMs} ms";
@@ -140,6 +150,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SetDisconnected(string message)
     {
         _isConnected = false;
+        _connectedProfile = null;
         ConnectionStatus.Text = message;
         ProbeStatus.Text = "آماده اتصال هوشمند";
         ProbeProgress.Visibility = Visibility.Collapsed;
@@ -176,7 +187,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_connection.IsRunning)
         {
             await _connection.StopAsync();
+            _connectedProfile = null;
             _isConnected = false;
+            SetDisconnected("اتصال قطع شد");
             UpdateDashboard();
             return;
         }
@@ -234,6 +247,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             await _connection.StartAsync(chosen, ProfileStore.Instance.State.Settings, token);
 
+            _connectedProfile = chosen;
             _isConnected = true;
             ConnectionStatus.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN"
                 ? "VPN فعال"
@@ -245,12 +259,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         catch (OperationCanceledException)
         {
+            _connectedProfile = null;
             _isConnected = false;
             SetDisconnected("تست یا اتصال لغو شد");
             AppendLog("Connect flow cancelled by user.");
         }
         catch (Exception ex)
         {
+            _connectedProfile = null;
             _isConnected = false;
             SetDisconnected("اتصال برقرار نشد");
             AppendLog("Connect flow failed: " + ex.Message);
@@ -541,6 +557,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedProfile is null) return;
+        if (_connection.IsRunning && _connectedProfile?.Id == _selectedProfile.Id)
+        {
+            MessageBox.Show("این کانفیگ در حال حاضر برای اتصال فعال استفاده می‌شود. ابتدا VPN/Proxy را قطع کن.",
+                "کانفیگ در حال استفاده", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (MessageBox.Show($"کانفیگ «{_selectedProfile.Name}» حذف شود؟", "تأیید حذف", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         Profiles.Remove(_selectedProfile);
         _selectedProfile = null;
