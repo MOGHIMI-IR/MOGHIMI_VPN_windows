@@ -87,6 +87,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "sing-box runtime smoke test failed." }
           & "runtime\sing-box.exe" check -c "tools\smoke-config.json"
           if ($LASTEXITCODE -ne 0) { throw "sing-box TUN/DNS config validation failed." }
+          dotnet run --project tools/ConfigSmoke/MoghimiVPN.ConfigSmoke.csproj --configuration Release -- "runtime\sing-box.exe"
+          if ($LASTEXITCODE -ne 0) { throw "A protocol configuration failed sing-box validation." }
           if (!(Test-Path "publish\MoghimiVPN.exe")) { throw "WPF application executable missing." }
           if (!(Test-Path "publish\MoghimiVPN.TunnelHost.exe")) { throw "Tunnel host executable missing." }
 
