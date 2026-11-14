@@ -237,6 +237,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         SaveSettingsFromUI();
         var selectedAtStart = (ProfilesList.SelectedItem as ProxyProfile)?.Id;
+        var selectedProfileAtStart = Profiles.FirstOrDefault(p => p.Id == selectedAtStart);
         _connectScanCts = new CancellationTokenSource();
         _connectionBusy = true;
         var token = _connectScanCts.Token;
