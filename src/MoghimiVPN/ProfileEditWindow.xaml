@@ -1,0 +1,191 @@
+<Window x:Class="MoghimiVPN.ProfileEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ویرایش کانفیگ" Width="820" Height="760" MinWidth="720" MinHeight="620"
+        WindowStartupLocation="CenterOwner" Background="#0B0D12" Foreground="#F3F5F8"
+        FlowDirection="RightToLeft" FontFamily="Segoe UI" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,14">
+            <TextBlock Text="جزئیات کانفیگ" FontSize="22" FontWeight="Bold"/>
+            <TextBlock Text="اطلاعات سرور را ویرایش کن؛ داده‌ها به‌صورت محلی و رمزگذاری‌شده ذخیره می‌شوند."
+                       Foreground="#8D98A9" FontSize="11" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Background="#141821" BorderBrush="#283140" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="اطلاعات پایه" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="نام کانفیگ" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="NameBox"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="پروتکل" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="ProtocolCombo" SelectionChanged="ProtocolCombo_SelectionChanged">
+                                    <ComboBoxItem Content="VLESS" Tag="vless"/>
+                                    <ComboBoxItem Content="VMess" Tag="vmess"/>
+                                    <ComboBoxItem Content="Trojan" Tag="trojan"/>
+                                    <ComboBoxItem Content="Shadowsocks" Tag="shadowsocks"/>
+                                    <ComboBoxItem Content="Hysteria 2" Tag="hysteria2"/>
+                                    <ComboBoxItem Content="TUIC" Tag="tuic"/>
+                                    <ComboBoxItem Content="AnyTLS" Tag="anytls"/>
+                                    <ComboBoxItem Content="WireGuard" Tag="wireguard"/>
+                                    <ComboBoxItem Content="SOCKS5" Tag="socks"/>
+                                    <ComboBoxItem Content="HTTP" Tag="http"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="آدرس سرور / Host" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ServerBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="پورت" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PortBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#141821" BorderBrush="#283140" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="شناسه و رمز عبور" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="UUID / نام کاربری" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="UuidBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Password" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PasswordTextBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="روش رمزنگاری Shadowsocks" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="MethodBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Encryption VMess" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="EncryptionBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#141821" BorderBrush="#283140" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="انتقال و TLS" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Security" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="SecurityCombo">
+                                    <ComboBoxItem Content="None" Tag="none"/>
+                                    <ComboBoxItem Content="TLS" Tag="tls"/>
+                                    <ComboBoxItem Content="Reality" Tag="reality"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Network / Transport" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="NetworkCombo">
+                                    <ComboBoxItem Content="TCP" Tag="tcp"/>
+                                    <ComboBoxItem Content="WebSocket" Tag="ws"/>
+                                    <ComboBoxItem Content="gRPC" Tag="grpc"/>
+                                    <ComboBoxItem Content="HTTP/2" Tag="h2"/>
+                                    <ComboBoxItem Content="HTTP Upgrade" Tag="httpupgrade"/>
+                                    <ComboBoxItem Content="QUIC" Tag="quic"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="SNI" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="SniBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Fingerprint" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="FingerprintBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Flow" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="FlowBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="ALPN (با کاما جدا کن)" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="AlpnBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Path" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PathBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Host Header" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="HostBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="gRPC Service Name" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ServiceNameBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Reality Public Key" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PublicKeyBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Reality Short ID" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ShortIdBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Obfuscation Type (Hysteria2)" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ObfsTypeBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Obfuscation Password" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ObfsPasswordBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                        </UniformGrid>
+                        <CheckBox x:Name="AllowInsecureCheck" Content="نادیده‌گرفتن اعتبار گواهی TLS (فقط در صورت اطمینان از سرور)" Margin="6,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="WireGuardPanel" Background="#141821" BorderBrush="#283140" BorderThickness="1" CornerRadius="16" Padding="16" Margin="0,0,0,12" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="WireGuard" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Private Key" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PrivateKeyBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Peer Public Key" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PeerPublicKeyBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Pre-Shared Key" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="PreSharedKeyBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Local Address" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="LocalAddressBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Allowed IPs" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="AllowedIpsBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                            <StackPanel Margin="6">
+                                <TextBlock Text="MTU" Foreground="#9AA5B5" Margin="0,0,0,5"/>
+                                <TextBox x:Name="MtuBox" FlowDirection="LeftToRight"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">
+            <Button Click="Save_Click" Style="{StaticResource AccentButton}" Width="150" Content="ذخیره کانفیگ" Margin="0,0,8,0"/>
+            <Button Click="Cancel_Click" Width="120" Content="انصراف"/>
+        </StackPanel>
+    </Grid>
+</Window>
