@@ -78,6 +78,7 @@ catch (Exception error)
     Console.Error.WriteLine("FAIL  subscription: " + error.Message);
 }
 
+var downgradeBlocked = false;
 try
 {
     var subscription = new SubscriptionItem
@@ -90,16 +91,41 @@ try
         ProfileCodec.Encode(profiles[0]),
         finalUri: new Uri("http://subscription.example.test/config")));
     await new SubscriptionService(http).FetchAsync(subscription);
-    throw new InvalidOperationException("An HTTPS-to-HTTP downgrade was accepted.");
 }
-catch (InvalidOperationException error) when (error.Message.Contains("HTTPS", StringComparison.OrdinalIgnoreCase))
+catch (InvalidOperationException error) when (error.Message.Contains("به HTTP ناامن", StringComparison.Ordinal))
 {
+    downgradeBlocked = true;
+}
+if (downgradeBlocked)
     Console.WriteLine("PASS  subscription  HTTPS downgrade blocked");
-}
-catch (Exception error)
+else
 {
-    failures.Add("subscription downgrade: " + error.Message);
-    Console.Error.WriteLine("FAIL  subscription downgrade: " + error.Message);
+    failures.Add("subscription downgrade: an HTTPS-to-HTTP redirect was accepted.");
+    Console.Error.WriteLine("FAIL  subscription downgrade: an HTTPS-to-HTTP redirect was accepted.");
+}
+
+var oversizedBlocked = false;
+try
+{
+    var subscription = new SubscriptionItem
+    {
+        Id = "oversize-subscription",
+        Name = "Oversize response test",
+        Url = "https://subscription.example.test/large"
+    };
+    using var http = new HttpClient(new SmokeResponseHandler(new string('A', 4 * 1024 * 1024 + 1)));
+    await new SubscriptionService(http).FetchAsync(subscription);
+}
+catch (InvalidOperationException error) when (error.Message.Contains("4 مگابایت", StringComparison.Ordinal))
+{
+    oversizedBlocked = true;
+}
+if (oversizedBlocked)
+    Console.WriteLine("PASS  subscription  response size limit enforced");
+else
+{
+    failures.Add("subscription size: oversized response was accepted.");
+    Console.Error.WriteLine("FAIL  subscription size: oversized response was accepted.");
 }
 
 var tempRoot = Path.Combine(Path.GetTempPath(), "MoghimiVPN-ConfigSmoke-" + Guid.NewGuid().ToString("N"));
