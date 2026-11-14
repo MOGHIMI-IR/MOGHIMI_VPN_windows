@@ -5,6 +5,11 @@
         WindowStartupLocation="CenterScreen" Background="#0B0D12" Foreground="#F3F5F8"
         FlowDirection="RightToLeft" FontFamily="Segoe UI" Closing="Window_Closing">
     <Window.Resources>
+        <CollectionViewSource x:Key="ProfilesView" Source="{Binding Profiles}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="SourceGroup"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="#141821"/>
             <Setter Property="BorderBrush" Value="#283140"/>
@@ -183,7 +188,7 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Text="شبکه" Foreground="#8996A9" FontSize="11"/>
-                                    <TextBlock Text="TUN / Proxy" FontSize="15" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="VPN / Proxy" FontSize="15" FontWeight="SemiBold" Margin="0,7,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="DNS" Foreground="#8996A9" FontSize="11"/>
@@ -222,7 +227,16 @@
                                 </WrapPanel>
                             </DockPanel>
                         </Border>
-                        <ListView x:Name="ProfilesList" Grid.Row="1" ItemsSource="{Binding Profiles}" SelectionChanged="ProfilesList_SelectionChanged">
+                        <ListView x:Name="ProfilesList" Grid.Row="1" ItemsSource="{Binding Source={StaticResource ProfilesView}}" SelectionChanged="ProfilesList_SelectionChanged">
+                            <ListView.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" Foreground="#E6A0A6" FontSize="12" FontWeight="SemiBold" Margin="4,12,4,6"/>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListView.GroupStyle>
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
