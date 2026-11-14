@@ -5,7 +5,7 @@ namespace MoghimiVPN;
 
 public static class SingBoxConfigBuilder
 {
-    public static string Build(ProxyProfile p, AppSettings settings, string logFile)
+    public static string Build(ProxyProfile p, AppSettings settings, string logFile, int mixedPort = 2080)
     {
         if (string.IsNullOrWhiteSpace(p.Server) || p.Port is < 1 or > 65535)
             throw new InvalidOperationException("آدرس یا پورت سرور معتبر نیست.");
@@ -33,7 +33,7 @@ public static class SingBoxConfigBuilder
         {
             inbounds.Add(new JsonObject {
                 ["type"] = "mixed", ["tag"] = "mixed-in",
-                ["listen"] = "127.0.0.1", ["listen_port"] = 2080
+                ["listen"] = "127.0.0.1", ["listen_port"] = mixedPort
             });
         }
         else
