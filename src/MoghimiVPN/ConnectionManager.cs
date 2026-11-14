@@ -78,6 +78,7 @@ public sealed class ConnectionManager : IDisposable
         {
             if (_systemProxyEnabled) SystemProxyController.Restore();
             _systemProxyEnabled = false;
+            try { File.Delete(Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json")); } catch { }
             EngineExited?.Invoke(this, EventArgs.Empty);
         };
         LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
@@ -138,7 +139,11 @@ public sealed class ConnectionManager : IDisposable
             }
         }
         catch { }
-        finally { process.Dispose(); }
+        finally
+        {
+            process.Dispose();
+            try { File.Delete(Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json")); } catch { }
+        }
         LogMessage?.Invoke(this, "اتصال متوقف شد.");
     }
 
