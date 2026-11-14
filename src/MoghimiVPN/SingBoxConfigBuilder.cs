@@ -327,6 +327,6 @@ public static class SingBoxConfigBuilder
         if (decoded.Length != 32)
             throw new InvalidOperationException("کلید عمومی Reality باید دقیقاً 32 بایت باشد.");
 
-        return Convert.ToBase64String(decoded);
+        return Convert.ToBase64String(decoded).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }
