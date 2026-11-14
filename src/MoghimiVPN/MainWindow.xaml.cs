@@ -104,7 +104,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ProfileCountSummary.Text = Profiles.Count.ToString();
         DnsSummary.Text = ProfileStore.Instance.State.Settings.DnsServer;
         ModeSummary.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN" ? "VPN Mode" : "Proxy Mode";
-        ConnectionStatus.Text = _isConnected ? "متصل" : "قطع";
+        ConnectionStatus.Text = _isConnected
+            ? (ProfileStore.Instance.State.Settings.ConnectionMode == "TUN" ? "VPN فعال" : "Proxy فعال")
+            : "قطع";
         ConnectButton.Content = _isConnected ? "قطع اتصال" : "اتصال امن";
         HeaderStatus.Text = _isConnected ? "تونل فعال" : "آماده اتصال";
         StatusDot.Fill = _isConnected ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Goldenrod;
