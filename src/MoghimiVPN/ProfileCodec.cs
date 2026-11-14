@@ -141,12 +141,12 @@ public static class ProfileCodec
                 )}#{label}";
             case "socks":
                 var socksUser = string.IsNullOrWhiteSpace(p.Uuid)
-                    ? Uri.EscapeDataString(p.Password)
+                    ? $":{Uri.EscapeDataString(p.Password)}"
                     : $"{Uri.EscapeDataString(p.Uuid)}:{Uri.EscapeDataString(p.Password)}";
                 return $"socks5://{socksUser}@{endpoint}#{label}";
             case "http":
                 var httpUser = string.IsNullOrWhiteSpace(p.Uuid)
-                    ? Uri.EscapeDataString(p.Password)
+                    ? $":{Uri.EscapeDataString(p.Password)}"
                     : $"{Uri.EscapeDataString(p.Uuid)}:{Uri.EscapeDataString(p.Password)}";
                 return $"http://{httpUser}@{endpoint}#{label}";
             case "wireguard":
