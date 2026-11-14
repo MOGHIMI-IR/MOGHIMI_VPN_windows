@@ -115,11 +115,39 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force "artifacts" | Out-Null
-          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
-          if (!(Test-Path $iscc)) { throw "Inno Setup compiler was not found." }
+          $isccPath = $null
+          $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+          if ($command) { $isccPath = $command.Source }
+
+          if (-not $isccPath) {
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+              "${env:ChocolateyInstall}\lib\innosetup\tools\ISCC.exe"
+            )
+            $isccPath = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          }
+
+          if (-not $isccPath) {
+            choco install innosetup --yes --no-progress
+            $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+            if ($command) { $isccPath = $command.Source }
+          }
+
+          if (-not $isccPath) {
+            $searchRoots = @("${env:ProgramFiles(x86)}", "$env:ProgramFiles", "${env:ChocolateyInstall}\lib\innosetup")
+            foreach ($root in $searchRoots) {
+              if ($root -and (Test-Path $root) -and -not $isccPath) {
+                $found = Get-ChildItem $root -Recurse -Filter "ISCC.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) { $isccPath = $found.FullName }
+              }
+            }
+          }
+
+          if (-not $isccPath) { throw "Inno Setup compiler was not found after checking PATH and standard install folders." }
+          Write-Host "Using Inno Setup compiler: $isccPath"
           $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
-          & $iscc "/DAppVersion=$version" "installer\MoghimiVPN.iss"
+          & $isccPath "/DAppVersion=$version" "installer\MoghimiVPN.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed." }
           Compress-Archive -Path "publish\*" -DestinationPath "artifacts\MoghimiVPN-Windows-x64-portable.zip" -Force
 
