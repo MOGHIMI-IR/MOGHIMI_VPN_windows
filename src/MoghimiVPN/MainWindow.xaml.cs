@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace MoghimiVPN;
@@ -390,7 +391,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (Profiles.Count == 0) return;
         var button = sender as Button;
-        button?.SetCurrentValue(IsEnabledProperty, false);
+        if (button is not null) button.IsEnabled = false;
         using var cts = new CancellationTokenSource();
         ProbeProgress.Visibility = Visibility.Visible;
         ProbeProgress.Value = 0;
