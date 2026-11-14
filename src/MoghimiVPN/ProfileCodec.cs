@@ -75,6 +75,90 @@ public static class ProfileCodec
         return profile;
     }
 
+    public static string Encode(ProxyProfile p)
+    {
+        var host = p.Server.Contains(':', StringComparison.Ordinal) && !p.Server.StartsWith("[", StringComparison.Ordinal)
+            ? $"[{p.Server}]"
+            : p.Server;
+        var endpoint = $"{host}:{p.Port}";
+        var label = Uri.EscapeDataString(string.IsNullOrWhiteSpace(p.Name) ? p.Protocol : p.Name);
+
+        string Query(params (string Key, string? Value)[] fields) =>
+            string.Join("&", fields
+                .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+                .Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value!)}"));
+
+        switch (p.Protocol)
+        {
+            case "vless":
+                return $"vless://{Uri.EscapeDataString(p.Uuid)}@{endpoint}?{Query(
+                    ("encryption", "none"), ("flow", p.Flow), ("security", p.Security),
+                    ("sni", p.Sni), ("fp", p.Fingerprint), ("pbk", p.PublicKey),
+                    ("sid", p.ShortId), ("alpn", p.Alpn), ("type", p.Network),
+                    ("path", p.Path), ("host", p.Host),
+                    ("serviceName", p.ServiceName), ("allowInsecure", p.AllowInsecure ? "1" : null)
+                )}#{label}";
+            case "vmess":
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    v = "2", ps = p.Name, add = p.Server, port = p.Port.ToString(),
+                    id = p.Uuid, aid = "0", scy = p.Encryption, net = p.Network,
+                    type = "none", host = p.Host, path = p.Path,
+                    tls = p.Security == "tls" ? "tls" : "",
+                    sni = p.Sni, fp = p.Fingerprint
+                });
+                return "vmess://" + Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+            }
+            case "trojan":
+                return $"trojan://{Uri.EscapeDataString(p.Password)}@{endpoint}?{Query(
+                    ("security", "tls"), ("sni", p.Sni), ("fp", p.Fingerprint),
+                    ("alpn", p.Alpn), ("type", p.Network), ("path", p.Path),
+                    ("host", p.Host), ("serviceName", p.ServiceName),
+                    ("allowInsecure", p.AllowInsecure ? "1" : null)
+                )}#{label}";
+            case "shadowsocks":
+            {
+                var user = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{p.Method}:{p.Password}"));
+                return $"ss://{user}@{endpoint}#{label}";
+            }
+            case "hysteria2":
+            case "hy2":
+                return $"hysteria2://{Uri.EscapeDataString(p.Password)}@{endpoint}?{Query(
+                    ("security", "tls"), ("sni", p.Sni), ("alpn", p.Alpn),
+                    ("obfs", p.ObfsType), ("obfs-password", p.ObfsPassword),
+                    ("insecure", p.AllowInsecure ? "1" : null)
+                )}#{label}";
+            case "tuic":
+                return $"tuic://{Uri.EscapeDataString(p.Uuid)}:{Uri.EscapeDataString(p.Password)}@{endpoint}?{Query(
+                    ("security", "tls"), ("sni", p.Sni), ("alpn", p.Alpn),
+                    ("congestion_control", "bbr"), ("udp_relay_mode", "native")
+                )}#{label}";
+            case "anytls":
+                return $"anytls://{Uri.EscapeDataString(p.Password)}@{endpoint}?{Query(
+                    ("security", "tls"), ("sni", p.Sni), ("alpn", p.Alpn),
+                    ("insecure", p.AllowInsecure ? "1" : null)
+                )}#{label}";
+            case "socks":
+                var socksUser = string.IsNullOrWhiteSpace(p.Uuid)
+                    ? Uri.EscapeDataString(p.Password)
+                    : $"{Uri.EscapeDataString(p.Uuid)}:{Uri.EscapeDataString(p.Password)}";
+                return $"socks5://{socksUser}@{endpoint}#{label}";
+            case "http":
+                var httpUser = string.IsNullOrWhiteSpace(p.Uuid)
+                    ? Uri.EscapeDataString(p.Password)
+                    : $"{Uri.EscapeDataString(p.Uuid)}:{Uri.EscapeDataString(p.Password)}";
+                return $"http://{httpUser}@{endpoint}#{label}";
+            case "wireguard":
+                return $"wireguard://{Uri.EscapeDataString(p.PrivateKey)}@{endpoint}?{Query(
+                    ("public_key", p.PeerPublicKey), ("preshared_key", p.PreSharedKey),
+                    ("address", p.LocalAddress), ("allowed_ips", p.AllowedIps), ("mtu", p.Mtu.ToString())
+                )}#{label}";
+            default:
+                throw new NotSupportedException($"پروتکل {p.Protocol} قابل خروجی گرفتن نیست.");
+        }
+    }
+
     public static List<ProxyProfile> DecodeMany(string body)
     {
         var text = body.Trim().Trim('\uFEFF');
