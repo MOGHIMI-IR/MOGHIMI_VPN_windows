@@ -36,6 +36,17 @@ public sealed class ProfileStore
         }
     }
 
+    public void ClearTransientConfigs()
+    {
+        try
+        {
+            if (Directory.Exists(ConfigDirectory))
+                foreach (var file in Directory.EnumerateFiles(ConfigDirectory, "*.json"))
+                    File.Delete(file);
+        }
+        catch { }
+    }
+
     public void Save()
     {
         Directory.CreateDirectory(DataDirectory);
