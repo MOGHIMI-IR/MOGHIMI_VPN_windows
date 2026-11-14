@@ -74,7 +74,7 @@ try
             try
             {
                 var json = SingBoxConfigBuilder.Build(profile, settings, Path.Combine(tempRoot, "smoke.log"));
-                await File.WriteAllTextAsync(configPath, json, Encoding.UTF8);
+                await File.WriteAllTextAsync(configPath, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
                 var start = new ProcessStartInfo
                 {
@@ -99,7 +99,7 @@ try
                 {
                     var probePath = Path.Combine(tempRoot, $"{profile.Protocol}-probe.json");
                     var probeJson = SingBoxConfigBuilder.BuildProbe(profile, 41873);
-                    await File.WriteAllTextAsync(probePath, probeJson, Encoding.UTF8);
+                    await File.WriteAllTextAsync(probePath, probeJson, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                     var probeStart = new ProcessStartInfo
                     {
                         FileName = engine,
