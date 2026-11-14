@@ -116,7 +116,7 @@ public sealed class CloudSync
         return Encoding.UTF8.GetString(output.ToArray()).Trim().Trim('\uFEFF');
     }
 
-    private static async Task<string> DownloadPrivateFileAsync(string path, CancellationToken cancellationToken)
+    private async Task<string> DownloadPrivateFileAsync(string path, CancellationToken cancellationToken)
     {
         var normalizedPath = path.Trim('/');
         var pathParts = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
