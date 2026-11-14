@@ -124,13 +124,13 @@ public partial class ProfileEditWindow : Window
         var protocol = SelectedTag(ProtocolCombo);
         var uuid = UuidBox.Text.Trim();
         var password = PasswordTextBox.Text;
-        if (protocol is "vless" or "vmess" && string.IsNullOrWhiteSpace(uuid))
+        if ((protocol is "vless" or "vmess") && string.IsNullOrWhiteSpace(uuid))
         {
             MessageBox.Show("برای این پروتکل UUID لازم است.", "کانفیگ نامعتبر",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        if (protocol is "trojan" or "hysteria2" or "anytls" && string.IsNullOrWhiteSpace(password))
+        if ((protocol is "trojan" or "hysteria2" or "anytls") && string.IsNullOrWhiteSpace(password))
         {
             MessageBox.Show("برای این پروتکل Password لازم است.", "کانفیگ نامعتبر",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
