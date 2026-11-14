@@ -194,6 +194,12 @@
                                         <TextBlock x:Name="SelectedProfileName" Text="هنوز سروری انتخاب نشده" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="SelectedProfileEndpoint" Text="از بخش کانفیگ‌ها یک سرور اضافه کن" Foreground="#8D98A9" FontSize="11" Margin="0,7,0,0" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="SelectedProfileLatency" Text="— ms" Foreground="#6FD3A4" FontSize="12" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                                        <Border Background="#10151E" CornerRadius="9" Padding="10,8" Margin="0,12,0,0">
+                                            <Grid>
+                                                <TextBlock Text="مدت اتصال" Foreground="#8D98A9" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="SessionUptime" Text="00:00:00" Foreground="#8D98A9" FontSize="13" FontWeight="SemiBold" FontFamily="Consolas" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock Text="نکته اتصال" FontWeight="SemiBold" Margin="0,20,0,6"/>
