@@ -68,7 +68,7 @@
                         </Grid>
                     </Border>
                     <TextBlock Text="MOGHIMI" FontSize="19" FontWeight="Black" Foreground="White"/>
-                    <TextBlock Text="V P N   /   WINDOWS" FontSize="10" CharacterSpacing="180" Foreground="#8793A5" Margin="0,2,0,28"/>
+                    <TextBlock Text="V P N   /   WINDOWS" FontSize="10" Foreground="#8793A5" Margin="0,2,0,28"/>
                     <TextBlock Text="فضای کاری" Foreground="#687588" FontSize="11" Margin="4,0,0,9"/>
                     <Button Style="{StaticResource NavButton}" Click="HomeNav_Click" Content="⌂    خانه"/>
                     <Button Style="{StaticResource NavButton}" Click="ProfilesNav_Click" Content="◈    کانفیگ‌ها"/>
