@@ -259,7 +259,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var currentSelection = ProfilesList.SelectedItem as ProxyProfile;
             var userChangedSelection = currentSelection is not null &&
                                        currentSelection.Id != selectedAtStart;
-            var chosen = userChangedSelection ? currentSelection : best;
+            var chosen = userChangedSelection
+                ? currentSelection
+                : best ?? selectedProfileAtStart;
 
             if (chosen is null)
             {
@@ -284,7 +286,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             ProbeStatus.Text = chosen.LatencyMs >= 0
                 ? $"بهترین مسیر: {chosen.Name}  ·  {chosen.LatencyMs} ms"
-                : $"انتخاب دستی: {chosen.Name}";
+                : best is null
+                    ? $"تست مقصدهای عمومی پاسخ نداد؛ اتصال با انتخابت: {chosen.Name}"
+                    : $"انتخاب دستی: {chosen.Name}";
 
             ConnectionStatus.Text = "سرور انتخاب شد؛ در حال برقراری اتصال…";
             HeaderStatus.Text = "در حال اتصال";
@@ -790,7 +794,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             // Keep the existing group intact until the new response is fully downloaded and parsed.
             var profiles = await _subscriptions.FetchAsync(subscription);
-            var previousSelectionId = _selectedProfile?.Id;
+            var selectedFromThisSubscription = _selectedProfile?.SubscriptionId == subscription.Id;
 
             foreach (var old in Profiles.Where(p => p.SubscriptionId == subscription.Id).ToList())
                 Profiles.Remove(old);
@@ -801,13 +805,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             subscription.LastUpdated = DateTime.Now;
             subscription.LastStatus = $"{profiles.Count} کانفیگ دریافت شد";
 
-            if (previousSelectionId is not null &&
-                !Profiles.Any(p => p.Id == previousSelectionId) &&
-                ProfilesList.SelectedItem is ProxyProfile selected &&
-                selected.SubscriptionId == subscription.Id)
-            {
+            if (selectedFromThisSubscription)
                 ProfilesList.SelectedItem = profiles.FirstOrDefault();
-            }
 
             SaveState();
             UpdateDashboard();
@@ -827,8 +826,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         finally
         {
             _subscriptionRefreshRunning = false;
-            if (Subscriptions.Contains(subscription))
-                SubscriptionsList.SelectedItem = subscription;
+            // Do not steal focus if the user selected another subscription while this request was running.
         }
     }
 
