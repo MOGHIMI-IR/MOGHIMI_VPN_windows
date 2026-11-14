@@ -252,11 +252,19 @@ jobs:
           }
           Write-Host "Per-user install and uninstall smoke test passed."
 
-      - name: Upload build artifacts
+      - name: Upload Windows Setup only
         uses: actions/upload-artifact@v4
         with:
-          name: MoghimiVPN-Windows-x64
-          path: artifacts/*
+          name: MoghimiVPN-Windows-Setup-x64
+          path: artifacts/MoghimiVPN-Setup-x64.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Windows Portable only
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoghimiVPN-Windows-Portable-x64
+          path: artifacts/MoghimiVPN-Windows-x64-portable.zip
           if-no-files-found: error
           retention-days: 30
 
