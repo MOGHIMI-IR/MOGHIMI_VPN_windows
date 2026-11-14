@@ -35,7 +35,7 @@ public static class ProfileCodec
                 _ => ""
             },
             Server = uri.Host,
-            Port = uri.IsDefaultPort ? DefaultPort(scheme) : uri.Port,
+            Port = uri.Port > 0 ? uri.Port : DefaultPort(scheme),
             Uuid = Uri.UnescapeDataString(uri.UserInfo.Split(':')[0]),
             Password = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo[(uri.UserInfo.IndexOf(':') + 1)..]) : "",
             Network = q["type"] ?? q["network"] ?? "tcp",
@@ -80,17 +80,10 @@ public static class ProfileCodec
         var text = body.Trim().Trim('\uFEFF');
         if (string.IsNullOrWhiteSpace(text)) return [];
         var decoded = TryBase64(text);
-        if (!string.IsNullOrWhiteSpace(decoded) && !decoded.Contains("://", StringComparison.Ordinal))
-        {
-            // Base64 may be a JSON VMess payload or a text subscription; use only when it
-            // decodes to printable UTF-8 and contains a known URI scheme.
-            if (decoded.Contains("vless://", StringComparison.OrdinalIgnoreCase) ||
-                decoded.Contains("vmess://", StringComparison.OrdinalIgnoreCase) ||
-                decoded.Contains("trojan://", StringComparison.OrdinalIgnoreCase) ||
-                decoded.Contains("ss://", StringComparison.OrdinalIgnoreCase) ||
-                decoded.Contains("hy2://", StringComparison.OrdinalIgnoreCase))
-                text = decoded;
-        }
+        if (!string.IsNullOrWhiteSpace(decoded) &&
+            (decoded.Contains("://", StringComparison.OrdinalIgnoreCase) ||
+             decoded.Contains("vmess://", StringComparison.OrdinalIgnoreCase)))
+            text = decoded;
         var result = new List<ProxyProfile>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
