@@ -88,6 +88,8 @@ public static class SingBoxConfigBuilder
             ["detour"] = "proxy"
         };
         if (dnsPort > 0) dnsConfig["server_port"] = dnsPort;
+        // Resolve a domain used by the configured DNS server outside the tunnel as well.
+        dnsConfig["domain_resolver"] = "dns-bootstrap";
         if (dnsType == "https")
         {
             dnsConfig["path"] = dnsPath;
@@ -101,7 +103,15 @@ public static class SingBoxConfigBuilder
         {
             ["log"] = new JsonObject { ["level"] = "info", ["timestamp"] = true, ["output"] = logFile },
             ["dns"] = new JsonObject {
-                ["servers"] = new JsonArray(dnsConfig),
+                ["servers"] = new JsonArray(
+                    new JsonObject {
+                        ["type"] = "udp",
+                        ["tag"] = "dns-bootstrap",
+                        ["server"] = "1.1.1.1",
+                        ["detour"] = "direct"
+                    },
+                    dnsConfig
+                ),
                 ["final"] = "dns-remote"
             },
             ["inbounds"] = inbounds,
@@ -113,6 +123,7 @@ public static class SingBoxConfigBuilder
             ),
             ["route"] = new JsonObject {
                 ["auto_detect_interface"] = true,
+                ["default_domain_resolver"] = "dns-bootstrap",
                 ["final"] = "proxy",
                 ["rules"] = rules
             }
@@ -303,7 +314,7 @@ public static class SingBoxConfigBuilder
                 o["transport"] = new JsonObject { ["type"] = "quic" };
                 break;
             default:
-                throw new NotSupportedException($"انتقال {p.Network} در sing-box پشتیبانی نمی‌شود؛ XHTTP و mKCP فعلاً قابل استفاده نیستند.");
+                throw new NotSupportedException($"انتقال {p.Network} در sing-box این نسخه پشتیبانی نمی‌شود؛ mKCP، DomainSocket و XHTTP قابل استفاده نیستند.");
         }
     }
 
