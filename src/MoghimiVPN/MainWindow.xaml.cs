@@ -18,6 +18,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _cloudSyncRunning;
     private bool _connectionBusy;
     private CancellationTokenSource? _connectScanCts;
+    private CancellationTokenSource? _manualScanCts;
+    private bool _manualScanBusy;
+    private bool _closeAfterBusyOperation;
     private ProxyProfile? _selectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
@@ -129,6 +132,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_manualScanBusy)
+        {
+            MessageBox.Show("تست دستی سرورها در حال اجراست؛ پس از پایان آن اتصال را شروع کن.",
+                "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         if (_connectionBusy)
         {
             _connectScanCts?.Cancel();
@@ -235,6 +245,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             StopOrbAnimation();
             ConnectButton.IsEnabled = true;
             UpdateDashboard();
+            if (_closeAfterBusyOperation)
+            {
+                _closeAfterBusyOperation = false;
+                if (_connection.IsRunning) await _connection.StopAsync();
+                Close();
+            }
         }
     }
 
@@ -507,17 +523,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ScanLatency_Click(object sender, RoutedEventArgs e)
     {
-        if (Profiles.Count == 0) return;
+        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy) return;
         var button = sender as Button;
         if (button is not null) button.IsEnabled = false;
-        using var cts = new CancellationTokenSource();
+        _manualScanBusy = true;
+        _manualScanCts = new CancellationTokenSource();
         ProbeProgress.Visibility = Visibility.Visible;
         ProbeProgress.Value = 0;
         ProbeStatus.Text = "در حال تست واقعی مسیر سرورها…";
         StartOrbAnimation();
         try
         {
-            var best = await ProbeAllProfilesAsync(cts.Token);
+            var best = await ProbeAllProfilesAsync(_manualScanCts.Token);
             if (best is not null)
             {
                 ProfilesList.SelectedItem = best;
@@ -531,11 +548,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             SaveState();
         }
+        catch (OperationCanceledException)
+        {
+            ProbeStatus.Text = "تست لغو شد";
+        }
         finally
         {
+            _manualScanBusy = false;
+            _manualScanCts?.Dispose();
+            _manualScanCts = null;
             ProbeProgress.Visibility = Visibility.Collapsed;
             StopOrbAnimation();
             if (button is not null) button.IsEnabled = true;
+            if (_closeAfterBusyOperation)
+            {
+                _closeAfterBusyOperation = false;
+                Close();
+            }
         }
     }
 
@@ -660,11 +689,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _closeAfterDisconnect;
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if ((_connectionBusy || _manualScanBusy) && !_closeAfterBusyOperation)
+        {
+            e.Cancel = true;
+            _closeAfterBusyOperation = true;
+            _connectScanCts?.Cancel();
+            _manualScanCts?.Cancel();
+            return;
+        }
+
         if (!_closeAfterDisconnect && _connection.IsRunning)
         {
             e.Cancel = true;
             _closeAfterDisconnect = true;
             _logTimer.Stop();
+            _cloudTimer.Stop();
             IsEnabled = false;
             try { await _connection.StopAsync(); }
             finally
@@ -675,6 +714,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             return;
         }
+
         _logTimer.Stop();
         _cloudTimer.Stop();
         _connection.Dispose();
