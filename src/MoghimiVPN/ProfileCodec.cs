@@ -53,9 +53,9 @@ public static class ProfileCodec
             Method = q["method"] ?? "chacha20-ietf-poly1305",
             ObfsType = q["obfs"] ?? "",
             ObfsPassword = q["obfs-password"] ?? q["obfs_password"] ?? "",
-            PrivateKey = q["private_key"] ?? "",
-            PeerPublicKey = q["public_key"] ?? "",
-            PreSharedKey = q["preshared_key"] ?? "",
+            PrivateKey = q["private_key"] ?? q["privatekey"] ?? "",
+            PeerPublicKey = q["public_key"] ?? q["publickey"] ?? "",
+            PreSharedKey = q["preshared_key"] ?? q["pre_shared_key"] ?? "",
             LocalAddress = q["address"] ?? "10.0.0.2/32",
             AllowedIps = q["allowed_ips"] ?? "0.0.0.0/0,::/0"
         };
@@ -77,7 +77,7 @@ public static class ProfileCodec
 
     public static string Encode(ProxyProfile p)
     {
-        var host = p.Server.Contains(':', StringComparison.Ordinal) && !p.Server.StartsWith("[", StringComparison.Ordinal)
+        var host = p.Server.Contains(':') && !p.Server.StartsWith("[", StringComparison.Ordinal)
             ? $"[{p.Server}]"
             : p.Server;
         var endpoint = $"{host}:{p.Port}";
