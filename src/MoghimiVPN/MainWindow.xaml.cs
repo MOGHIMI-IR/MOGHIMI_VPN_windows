@@ -769,35 +769,66 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning || _connection.IsRunning)
         {
-            MessageBox.Show("هنگام تست یا اتصال، اشتراک‌ها به‌روزرسانی نمی‌شوند.",
+            MessageBox.Show("برای جلوگیری از تداخل، هنگام تست سرورها یا اتصال فعال، اشتراک‌ها به‌روزرسانی نمی‌شوند.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        if (_selectedSubscription is null)
+
+        var subscription = _selectedSubscription;
+        if (subscription is null)
         {
             MessageBox.Show("ابتدا یک اشتراک انتخاب کن.", "اشتراک", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+
         _subscriptionRefreshRunning = true;
+        subscription.LastStatus = "در حال دریافت و بررسی کانفیگ‌ها…";
+        SaveState();
         try
         {
-            var profiles = await _subscriptions.FetchAsync(_selectedSubscription);
-            foreach (var old in Profiles.Where(p => p.SubscriptionId == _selectedSubscription.Id).ToList()) Profiles.Remove(old);
-            foreach (var profile in profiles) Profiles.Add(profile);
-            _selectedSubscription.ProfileCount = profiles.Count;
-            _selectedSubscription.LastUpdated = DateTime.Now;
-            _selectedSubscription.LastStatus = $"{profiles.Count} کانفیگ دریافت شد";
+            // Keep the existing group intact until the new response is fully downloaded and parsed.
+            var profiles = await _subscriptions.FetchAsync(subscription);
+            var previousSelectionId = _selectedProfile?.Id;
+
+            foreach (var old in Profiles.Where(p => p.SubscriptionId == subscription.Id).ToList())
+                Profiles.Remove(old);
+            foreach (var profile in profiles)
+                Profiles.Add(profile);
+
+            subscription.ProfileCount = profiles.Count;
+            subscription.LastUpdated = DateTime.Now;
+            subscription.LastStatus = $"{profiles.Count} کانفیگ دریافت شد";
+
+            if (previousSelectionId is not null &&
+                !Profiles.Any(p => p.Id == previousSelectionId) &&
+                ProfilesList.SelectedItem is ProxyProfile selected &&
+                selected.SubscriptionId == subscription.Id)
+            {
+                ProfilesList.SelectedItem = profiles.FirstOrDefault();
+            }
+
             SaveState();
             UpdateDashboard();
-            AppendLog($"Subscription updated: {_selectedSubscription.Name}");
+            AppendLog($"Subscription updated: {subscription.Name} ({profiles.Count} profiles)");
+        }
+        catch (OperationCanceledException)
+        {
+            subscription.LastStatus = "به‌روزرسانی لغو شد؛ کانفیگ‌های قبلی حفظ شدند.";
+            SaveState();
         }
         catch (Exception ex)
         {
-            _selectedSubscription.LastStatus = "به‌روزرسانی ناموفق: " + ex.Message;
+            subscription.LastStatus = "به‌روزرسانی ناموفق: " + ex.Message;
             SaveState();
             MessageBox.Show(ex.Message, "خطا در اشتراک", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _subscriptionRefreshRunning = false;
+            if (Subscriptions.Contains(subscription))
+                SubscriptionsList.SelectedItem = subscription;
         }
     }
 
