@@ -13,6 +13,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly CloudSync _cloudSync = new();
     private readonly SubscriptionService _subscriptions = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromHours(6) };
+    private bool _cloudSyncRunning;
     private ProxyProfile? _selectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
@@ -35,6 +37,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
         _logTimer.Tick += (_, _) => RefreshLogs();
         _logTimer.Start();
+        _cloudTimer.Tick += async (_, _) => await SyncCloudAsync(silent: true);
+        _cloudTimer.Start();
+        Loaded += async (_, _) => await SyncCloudAsync(silent: true);
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) => Navigate(0, "داشبورد اتصال", "وضعیت اتصال و سرور فعال");
@@ -177,6 +182,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex) { MessageBox.Show(ex.Message, "خطا در واردکردن فایل", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
+    private void PasteClipboard_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var clipboard = Clipboard.GetText();
+            if (string.IsNullOrWhiteSpace(clipboard))
+            {
+                MessageBox.Show("کلیپ‌بورد خالی است یا متن قابل خواندن ندارد.", "واردکردن کانفیگ", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            AddProfiles(ProfileCodec.DecodeMany(clipboard), "کلیپ‌بورد");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("خواندن کلیپ‌بورد ممکن نشد: " + ex.Message, "خطا", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void AddProfiles(List<ProxyProfile> items, string source)
     {
         if (items.Count == 0)
@@ -267,34 +290,56 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private async void CloudSync_Click(object sender, RoutedEventArgs e)
+    private async void CloudSync_Click(object sender, RoutedEventArgs e) =>
+        await SyncCloudAsync(silent: false);
+
+    private async Task SyncCloudAsync(bool silent)
     {
+        if (_cloudSyncRunning) return;
+        _cloudSyncRunning = true;
+        HeaderStatus.Text = "همگام‌سازی سایت";
         try
         {
-            HeaderStatus.Text = "همگام‌سازی سایت";
+            // Fetch and parse everything first. Do not remove the previous working cloud group
+            // unless the full active catalogue has been received successfully.
             var imported = await _cloudSync.FetchActiveProfilesAsync();
-            foreach (var old in Profiles.Where(p => p.SubscriptionId == "moghimi-cloud").ToList()) Profiles.Remove(old);
-            foreach (var profile in imported) Profiles.Add(profile);
+            var selectedWasCloud = _selectedProfile?.SubscriptionId == "moghimi-cloud";
+            foreach (var old in Profiles.Where(p => p.SubscriptionId == "moghimi-cloud").ToList())
+                Profiles.Remove(old);
+            foreach (var profile in imported)
+                Profiles.Add(profile);
+
             var cloud = Subscriptions.FirstOrDefault(s => s.Id == "moghimi-cloud");
             if (cloud is null)
             {
-                cloud = new SubscriptionItem { Id = "moghimi-cloud", Name = "کانفیگ‌های سایت مقیمی", Url = "Supabase / active entries" };
+                cloud = new SubscriptionItem
+                {
+                    Id = "moghimi-cloud",
+                    Name = "کانفیگ‌های سایت مقیمی",
+                    Url = "Supabase / active entries"
+                };
                 Subscriptions.Add(cloud);
             }
             cloud.ProfileCount = imported.Count;
             cloud.LastUpdated = DateTime.Now;
             cloud.LastStatus = $"{imported.Count} کانفیگ فعال همگام شد";
-            if (_selectedProfile is null) ProfilesList.SelectedItem = imported.FirstOrDefault();
+
+            if (selectedWasCloud || _selectedProfile is null || !Profiles.Contains(_selectedProfile))
+                ProfilesList.SelectedItem = imported.FirstOrDefault();
             SaveState();
             AppendLog($"Moghimi cloud sync: {imported.Count} profile(s).");
-            MessageBox.Show($"{imported.Count} کانفیگ فعال از سایت دریافت شد.", "همگام‌سازی موفق", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!silent)
+                MessageBox.Show($"{imported.Count} کانفیگ فعال از سایت دریافت شد.", "همگام‌سازی موفق", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "همگام‌سازی ناموفق", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppendLog("Moghimi cloud sync failed: " + ex.Message);
+            if (!silent)
+                MessageBox.Show(ex.Message, "همگام‌سازی ناموفق", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
+            _cloudSyncRunning = false;
             HeaderStatus.Text = _connection.IsRunning ? "متصل" : "آماده اتصال";
             UpdateDashboard();
         }
@@ -344,6 +389,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
         _logTimer.Stop();
+        _cloudTimer.Stop();
         _connection.Dispose();
         SystemProxyController.Restore();
     }
