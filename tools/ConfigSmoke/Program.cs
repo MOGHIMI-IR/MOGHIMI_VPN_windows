@@ -55,6 +55,7 @@ var profiles = new List<ProxyProfile>
         AllowedIps = "0.0.0.0/0,::/0", Mtu = 1408 }
 };
 
+var failures = new List<string>();
 var subscriptionPassed = false;
 try
 {
@@ -130,7 +131,6 @@ else
 
 var tempRoot = Path.Combine(Path.GetTempPath(), "MoghimiVPN-ConfigSmoke-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempRoot);
-var failures = new List<string>();
 
 try
 {
