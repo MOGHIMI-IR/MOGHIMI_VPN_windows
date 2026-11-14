@@ -790,9 +790,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _subscriptionRefreshRunning = true;
         subscription.LastStatus = "در حال دریافت و بررسی کانفیگ‌ها…";
-        SaveState();
         try
         {
+            SaveState();
             // Keep the existing group intact until the new response is fully downloaded and parsed.
             var profiles = await _subscriptions.FetchAsync(subscription);
             var selectedFromThisSubscription = _selectedProfile?.SubscriptionId == subscription.Id;
@@ -816,12 +816,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (OperationCanceledException)
         {
             subscription.LastStatus = "به‌روزرسانی لغو شد؛ کانفیگ‌های قبلی حفظ شدند.";
-            SaveState();
+            try { SaveState(); } catch (Exception saveError) { AppendLog("Subscription status save failed: " + saveError.Message); }
         }
         catch (Exception ex)
         {
             subscription.LastStatus = "به‌روزرسانی ناموفق: " + ex.Message;
-            SaveState();
+            try { SaveState(); } catch (Exception saveError) { AppendLog("Subscription status save failed: " + saveError.Message); }
             MessageBox.Show(ex.Message, "خطا در اشتراک", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
