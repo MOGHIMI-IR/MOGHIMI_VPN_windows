@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
+using System.Net.NetworkInformation;
 
 namespace MoghimiVPN;
 
@@ -7,6 +9,7 @@ public sealed class ConnectionManager : IDisposable
 {
     private Process? _process;
     private bool _systemProxyEnabled;
+    private int _systemProxyPort = 2080;
     private readonly string _enginePath = Path.Combine(AppContext.BaseDirectory, "runtime", "sing-box.exe");
     public event EventHandler<string>? LogMessage;
     public event EventHandler? EngineExited;
@@ -25,15 +28,19 @@ public sealed class ConnectionManager : IDisposable
         var configPath = Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json");
         var logPath = Path.Combine(ProfileStore.Instance.LogDirectory, "sing-box.log");
         var launched = false;
+        var tunnelMode = settings.ConnectionMode == "TUN";
+        var proxyPort = tunnelMode ? 2080 : ReserveLocalPort();
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var json = SingBoxConfigBuilder.Build(profile, settings, logPath);
+            if (tunnelMode && FindTunInterface() is not null)
+                throw new InvalidOperationException("رابط MoghimiVPN از اجرای قبلی هنوز در ویندوز دیده می‌شود. سیستم را یک‌بار Restart کن و دوباره تلاش کن.");
+
+            var json = SingBoxConfigBuilder.Build(profile, settings, logPath, proxyPort);
             await File.WriteAllTextAsync(configPath, json, cancellationToken);
             await ValidateConfigAsync(configPath, cancellationToken);
 
-            var tunnelMode = settings.ConnectionMode == "TUN";
             var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
             var startInfo = new ProcessStartInfo
             {
@@ -68,21 +75,17 @@ public sealed class ConnectionManager : IDisposable
                 EngineExited?.Invoke(this, EventArgs.Empty);
             };
 
-            if (settings.ConnectionMode == "System Proxy")
+            if (tunnelMode)
             {
-                await Task.Delay(1000, cancellationToken);
-                if (_process.HasExited)
-                    throw new InvalidOperationException("هسته VPN پیش از آماده‌شدن متوقف شد. گزارش اتصال را بررسی کن.");
-                cancellationToken.ThrowIfCancellationRequested();
-                SystemProxyController.Enable();
-                _systemProxyEnabled = true;
+                await WaitForTunInterfaceAsync(_process, TimeSpan.FromSeconds(12), cancellationToken);
             }
             else
             {
-                await Task.Delay(1600, cancellationToken);
-                if (_process.HasExited)
-                    throw new InvalidOperationException("راه‌انداز تونل یا هسته sing-box اجرا نشد. گزارش اتصال را بررسی کن.");
+                await WaitForProxyListenerAsync(_process, proxyPort, TimeSpan.FromSeconds(8), cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
+                _systemProxyPort = proxyPort;
+                SystemProxyController.Enable(port: proxyPort);
+                _systemProxyEnabled = true;
             }
 
             LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
@@ -97,6 +100,77 @@ public sealed class ConnectionManager : IDisposable
             }
             throw;
         }
+    }
+
+    private static int ReserveLocalPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private static async Task WaitForProxyListenerAsync(
+        Process process,
+        int port,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < timeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (process.HasExited)
+                throw new InvalidOperationException("sing-box پیش از آماده‌شدن پراکسی متوقف شد. گزارش اتصال را بررسی کن.");
+
+            try
+            {
+                using var client = new TcpClient();
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                linked.CancelAfter(350);
+                await client.ConnectAsync(IPAddress.Loopback, port, linked.Token);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                await Task.Delay(120, cancellationToken);
+            }
+        }
+        throw new TimeoutException("پراکسی محلی sing-box در زمان مجاز آماده نشد؛ تنظیمات Windows Proxy تغییر داده نشد.");
+    }
+
+    private static NetworkInterface? FindTunInterface()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(item => string.Equals(item.Name, "MoghimiVPN", StringComparison.OrdinalIgnoreCase));
+        }
+        catch { return null; }
+    }
+
+    private static async Task WaitForTunInterfaceAsync(
+        Process process,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed < timeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (process.HasExited)
+                throw new InvalidOperationException("هستهٔ VPN پیش از ساخت رابط TUN متوقف شد. گزارش اتصال را بررسی کن.");
+
+            var adapter = FindTunInterface();
+            if (adapter?.OperationalStatus == OperationalStatus.Up)
+                return;
+
+            await Task.Delay(250, cancellationToken);
+        }
+        throw new TimeoutException("رابط شبکهٔ MoghimiVPN در ویندوز آماده نشد؛ اتصال فعال اعلام نشد.");
     }
 
     private async Task ValidateConfigAsync(string configPath, CancellationToken cancellationToken)
