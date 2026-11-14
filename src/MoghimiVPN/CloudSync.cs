@@ -14,7 +14,11 @@ public sealed class CloudSync
     private const int MaxAggregateBytes = 16 * 1024 * 1024;
     private const int MaxEntries = 2000;
     private const int MaxProfiles = 2000;
-    private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(18) };
+    private static readonly HttpClient SharedClient = new() { Timeout = TimeSpan.FromSeconds(18) };
+    private readonly HttpClient _client;
+
+    public CloudSync(HttpClient? client = null) =>
+        _client = client ?? SharedClient;
 
     private sealed class Entry
     {
@@ -30,7 +34,7 @@ public sealed class CloudSync
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
         request.Headers.TryAddWithoutValidation("apikey", PublishableKey);
         request.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
-        using var response = await Client.SendAsync(request, cancellationToken);
+        using var response = await _client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         var json = await ReadBoundedTextAsync(response.Content, MaxResponseBytes, cancellationToken);
         var entries = JsonSerializer.Deserialize<List<Entry>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
@@ -93,13 +97,18 @@ public sealed class CloudSync
 
     private static async Task<string> DownloadPrivateFileAsync(string path, CancellationToken cancellationToken)
     {
-        var segments = string.Join("/", path.Split('/').Select(Uri.EscapeDataString));
+        var normalizedPath = path.Trim('/');
+        var pathParts = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (pathParts.Length == 0 ||
+            pathParts.Any(part => part is "." or ".." || part.Contains('\') || part.Any(char.IsControl)))
+            throw new InvalidOperationException("مسیر فایل در کاتالوگ ابری معتبر نیست و رد شد.");
+        var segments = string.Join("/", pathParts.Select(Uri.EscapeDataString));
         var signUrl = $"{ProjectUrl}/storage/v1/object/sign/{StorageBucket}/{segments}";
         using var signRequest = new HttpRequestMessage(HttpMethod.Post, signUrl);
         signRequest.Headers.TryAddWithoutValidation("apikey", PublishableKey);
         signRequest.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
         signRequest.Content = new StringContent("{\"expiresIn\":600}", System.Text.Encoding.UTF8, "application/json");
-        using var signResponse = await Client.SendAsync(signRequest, cancellationToken);
+        using var signResponse = await _client.SendAsync(signRequest, cancellationToken);
         signResponse.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await ReadBoundedTextAsync(signResponse.Content, 64 * 1024, cancellationToken));
         if (!doc.RootElement.TryGetProperty("signedURL", out var signed) || string.IsNullOrWhiteSpace(signed.GetString()))
@@ -117,7 +126,7 @@ public sealed class CloudSync
             throw new InvalidOperationException("لینک موقت فایل خارج از دامنه یا مسیر رسمی Storage پروژه است و رد شد.");
 
         // Signed URLs already authorize the download; intentionally do not attach the API key.
-        using var fileResponse = await Client.GetAsync(target, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var fileResponse = await _client.GetAsync(target, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         fileResponse.EnsureSuccessStatusCode();
         var finalUri = fileResponse.RequestMessage?.RequestUri;
         if (finalUri is null ||
