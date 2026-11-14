@@ -61,6 +61,32 @@ try
 {
     foreach (var profile in profiles)
     {
+        try
+        {
+            var encoded = ProfileCodec.Encode(profile);
+            var decoded = ProfileCodec.DecodeMany(encoded);
+            if (decoded.Count != 1 ||
+                !string.Equals(decoded[0].Protocol, profile.Protocol, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(decoded[0].Server, profile.Server, StringComparison.OrdinalIgnoreCase) ||
+                decoded[0].Port != profile.Port)
+                throw new InvalidOperationException("Profile link encode/decode round-trip did not preserve protocol/server/port.");
+
+            var qrBytes = QrCodeService.CreatePng(encoded);
+            var qrPath = Path.Combine(tempRoot, $"qr-{profile.Protocol}.png");
+            await File.WriteAllBytesAsync(qrPath, qrBytes);
+            var qrText = QrCodeService.DecodeFromImage(qrPath);
+            var qrProfile = ProfileCodec.DecodeMany(qrText);
+            if (qrProfile.Count != 1 || !string.Equals(qrProfile[0].Protocol, profile.Protocol, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("QR encode/decode round-trip did not preserve profile protocol.");
+
+            Console.WriteLine($"PASS  {profile.Protocol,-12}  link + QR round-trip");
+        }
+        catch (Exception error)
+        {
+            failures.Add($"{profile.Protocol} / link+QR: {error.Message}");
+            Console.Error.WriteLine($"FAIL  {profile.Protocol,-12}  link+QR: {error.Message}");
+        }
+
         foreach (var mode in new[] { "TUN", "System Proxy" })
         {
             var settings = new AppSettings

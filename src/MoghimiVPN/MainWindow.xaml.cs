@@ -48,6 +48,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Loaded += async (_, _) => await SyncCloudAsync(silent: true);
     }
 
+    private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.OriginalSource != Pages) return;
+        if (Pages.SelectedContent is not UIElement content) return;
+
+        content.BeginAnimation(UIElement.OpacityProperty, null);
+        content.Opacity = 0.72;
+        content.BeginAnimation(UIElement.OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0.72,
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(190),
+                EasingFunction = new System.Windows.Media.Animation.QuadraticEase
+                {
+                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
+                }
+            });
+    }
+
     private void HomeNav_Click(object sender, RoutedEventArgs e) => Navigate(0, "داشبورد اتصال", "وضعیت اتصال و سرور فعال");
     private void ProfilesNav_Click(object sender, RoutedEventArgs e) => Navigate(1, "مدیریت کانفیگ‌ها", "سرورها را اضافه، انتخاب و تست کن");
     private void SubscriptionsNav_Click(object sender, RoutedEventArgs e) => Navigate(2, "اشتراک‌ها", "دریافت کانفیگ‌های اشتراکی و سایت مقیمی");

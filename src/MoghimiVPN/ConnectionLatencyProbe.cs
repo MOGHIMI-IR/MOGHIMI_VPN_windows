@@ -12,8 +12,10 @@ public static class ConnectionLatencyProbe
 
     private static readonly Uri[] ProbeUris =
     [
+        new("https://cp.cloudflare.com/generate_204"),
         new("https://www.gstatic.com/generate_204"),
-        new("https://cp.cloudflare.com/generate_204")
+        new("https://www.msftconnecttest.com/connecttest.txt"),
+        new("https://example.com/")
     ];
 
     public static async Task<int> TestAsync(
@@ -64,11 +66,11 @@ public static class ConnectionLatencyProbe
             {
                 Proxy = new WebProxy($"http://127.0.0.1:{port}"),
                 UseProxy = true,
-                AllowAutoRedirect = false
+                AllowAutoRedirect = true
             };
             using var client = new HttpClient(handler)
             {
-                Timeout = TimeSpan.FromSeconds(4)
+                Timeout = TimeSpan.FromSeconds(3)
             };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MoghimiVPN-ConnectivityCheck/1.0");
 

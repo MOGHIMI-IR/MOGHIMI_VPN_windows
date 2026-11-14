@@ -58,6 +58,24 @@
     </Window.Resources>
 
     <Grid>
+        <Canvas Grid.ColumnSpan="2" IsHitTestVisible="False" ClipToBounds="True">
+            <Ellipse Width="640" Height="640" Canvas.Right="-240" Canvas.Top="-300" Opacity="0.22">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#4BE63946" Offset="0"/>
+                        <GradientStop Color="#00E63946" Offset="1"/>
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="520" Height="520" Canvas.Left="180" Canvas.Bottom="-310" Opacity="0.12">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#334A6E94" Offset="0"/>
+                        <GradientStop Color="#004A6E94" Offset="1"/>
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Canvas>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="226"/>
             <ColumnDefinition Width="*"/>
@@ -108,7 +126,7 @@
                 </Border>
             </Grid>
 
-            <TabControl x:Name="Pages" Grid.Row="1" Background="Transparent" BorderThickness="0">
+            <TabControl x:Name="Pages" Grid.Row="1" Background="Transparent" BorderThickness="0" SelectionChanged="Pages_SelectionChanged">
                 <TabControl.Resources>
                     <Style TargetType="TabItem"><Setter Property="Visibility" Value="Collapsed"/></Style>
                 </TabControl.Resources>
