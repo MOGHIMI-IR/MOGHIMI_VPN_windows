@@ -25,7 +25,7 @@ var baseSettings = new AppSettings
 
 var profiles = new List<ProxyProfile>
 {
-    new() { Name = "VLESS TLS WS", Protocol = "vless", Server = "192.0.2.10", Port = 443,
+    new() { Name = "VLESS TLS WS", Protocol = "vless", Server = "vless.example.com", Port = 443,
         Uuid = "00000000-0000-0000-0000-000000000001", Security = "tls", Sni = "example.com",
         Network = "ws", Path = "/vless", Host = "example.com", Fingerprint = "chrome" },
     new() { Name = "VLESS Reality", Protocol = "vless", Server = "192.0.2.11", Port = 443,

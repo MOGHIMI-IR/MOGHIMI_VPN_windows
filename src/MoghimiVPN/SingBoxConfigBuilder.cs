@@ -133,6 +133,17 @@ public static class SingBoxConfigBuilder
         var root = new JsonObject
         {
             ["log"] = new JsonObject { ["level"] = "error", ["timestamp"] = true },
+            ["dns"] = new JsonObject
+            {
+                ["servers"] = new JsonArray(new JsonObject
+                {
+                    ["type"] = "udp",
+                    ["tag"] = "probe-dns",
+                    ["server"] = "1.1.1.1",
+                    ["detour"] = "direct"
+                }),
+                ["final"] = "probe-dns"
+            },
             ["inbounds"] = new JsonArray(new JsonObject
             {
                 ["type"] = "mixed",
@@ -149,7 +160,8 @@ public static class SingBoxConfigBuilder
             ["route"] = new JsonObject
             {
                 ["auto_detect_interface"] = true,
-                ["final"] = isWireGuard ? "proxy" : "proxy"
+                ["default_domain_resolver"] = "probe-dns",
+                ["final"] = "proxy"
             }
         };
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
