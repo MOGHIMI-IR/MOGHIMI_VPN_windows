@@ -51,8 +51,7 @@ public sealed class CloudSync
             }
         }
 
-        if (imported.Count == 0)
-            throw new InvalidOperationException("کانفیگ فعالی با قالب قابل پشتیبانی در سرویس مقیمی پیدا نشد.");
+        // An empty active catalogue is a valid state: the UI will clear the old cloud group.
         return imported;
     }
 
