@@ -5,6 +5,10 @@ namespace MoghimiVPN;
 
 public static class SingBoxConfigBuilder
 {
+    public static bool IsTransportSupported(string? network) =>
+        (network ?? "tcp").Trim().ToLowerInvariant() is
+            "" or "tcp" or "raw" or "none" or "ws" or "grpc" or "h2" or "http" or "httpupgrade" or "http-upgrade" or "quic";
+
     public static string Build(ProxyProfile p, AppSettings settings, string logFile, int mixedPort = 2080)
     {
         if (string.IsNullOrWhiteSpace(p.Server) || p.Port is < 1 or > 65535)
@@ -268,6 +272,8 @@ public static class SingBoxConfigBuilder
         switch (network)
         {
             case "tcp":
+            case "raw":
+            case "none":
             case "":
                 break;
             case "ws":

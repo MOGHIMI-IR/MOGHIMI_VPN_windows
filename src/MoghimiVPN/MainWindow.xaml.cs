@@ -229,8 +229,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var chosen = userChangedSelection ? currentSelection : best;
 
             if (chosen is null)
+            {
+                var unsupported = Profiles
+                    .Where(p => !SingBoxConfigBuilder.IsTransportSupported(p.Network))
+                    .Select(p => string.IsNullOrWhiteSpace(p.Network) ? "نامشخص" : p.Network)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (unsupported.Count > 0)
+                    throw new InvalidOperationException(
+                        "هیچ سرور قابل اتصالی پیدا نشد. بعضی پروفایل‌ها از انتقال پشتیبانی‌نشده استفاده می‌کنند: " +
+                        string.Join("، ", unsupported) +
+                        ". در این نسخه TCP، WS، gRPC، HTTP/2، HTTPUpgrade و QUIC پشتیبانی می‌شوند.");
                 throw new InvalidOperationException(
                     "هیچ سرور پاسخ‌گویی پیدا نشد. اتصال شروع نشد؛ کانفیگ‌ها یا اینترنت را بررسی کن.");
+            }
 
             ProfilesList.SelectedItem = chosen;
             _selectedProfile = chosen;
@@ -386,6 +398,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ManualProfile_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         var dialog = new ProfileEditWindow { Owner = this };
         if (dialog.ShowDialog() != true) return;
         Profiles.Add(dialog.EditedProfile);
@@ -396,6 +414,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void EditProfile_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (_selectedProfile is null)
         {
             MessageBox.Show("ابتدا یک کانفیگ انتخاب کن.", "ویرایش کانفیگ",
@@ -542,6 +566,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AddProfiles(List<ProxyProfile> items, string source)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (items.Count == 0)
         {
             MessageBox.Show("هیچ لینک معتبری شناسایی نشد. قالب لینک را بررسی کن.", "ورودی نامعتبر", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -556,6 +586,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (_selectedProfile is null) return;
         if (_connection.IsRunning && _connectedProfile?.Id == _selectedProfile.Id)
         {
@@ -573,7 +609,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ScanLatency_Click(object sender, RoutedEventArgs e)
     {
-        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy || _connection.IsRunning) return;
+        if (Profiles.Count == 0 || _connectionBusy || _manualScanBusy || _cloudSyncRunning || _connection.IsRunning) return;
         var button = sender as Button;
         if (button is not null) button.IsEnabled = false;
         _manualScanBusy = true;
@@ -645,6 +681,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        {
+            MessageBox.Show("هنگام تست یا اتصال، اشتراک‌ها به‌روزرسانی نمی‌شوند.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (_selectedSubscription is null)
         {
             MessageBox.Show("ابتدا یک اشتراک انتخاب کن.", "اشتراک", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -676,6 +718,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task SyncCloudAsync(bool silent)
     {
         if (_cloudSyncRunning) return;
+        if (_connectionBusy || _manualScanBusy)
+        {
+            if (!silent)
+                MessageBox.Show("در حال تست سرورها هستیم؛ پس از پایان سنجش، همگام‌سازی را دوباره اجرا کن.",
+                    "همگام‌سازی", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         _cloudSyncRunning = true;
         HeaderStatus.Text = "همگام‌سازی سایت";
         try

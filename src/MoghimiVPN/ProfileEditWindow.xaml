@@ -145,6 +145,8 @@
                                 <TextBox x:Name="ObfsPasswordBox" FlowDirection="LeftToRight"/>
                             </StackPanel>
                         </UniformGrid>
+                        <TextBlock Text="انتقال‌های قابل استفاده: TCP، WS، gRPC، HTTP/2، HTTPUpgrade و QUIC. mKCP، DomainSocket و XHTTP در این نسخه پشتیبانی نمی‌شوند."
+                                   Foreground="#E2A0A5" FontSize="10" TextWrapping="Wrap" Margin="6,10,6,0"/>
                         <CheckBox x:Name="AllowInsecureCheck" Content="نادیده‌گرفتن اعتبار گواهی TLS (فقط در صورت اطمینان از سرور)" Margin="6,10,0,0"/>
                     </StackPanel>
                 </Border>

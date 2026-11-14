@@ -1,36 +1,41 @@
 # Moghimi VPN for Windows
 
-A native Windows desktop client for Moghimi VPN. This repository is independent from the Android and iOS projects.
+کلاینت دسکتاپ ویندوز مقیمی؛ پروژه‌ای مستقل از نسخه‌های Android و iOS.
 
-## Current implementation plan
-- Windows 10/11 x64, .NET 8 WPF desktop app.
-- Modern dark red/graphite interface, Persian-first RTL layout.
-- sing-box 1.14.4 as the pinned tunnel engine; Wintun 0.14.1 official signed DLL for the TUN interface.
-- VLESS, VMess, Trojan, Shadowsocks, Hysteria2, TUIC, AnyTLS, WireGuard, SOCKS5 and HTTP profile handling (per-engine compatibility and transport caveats apply).
-- Import from clipboard, links, files, subscription URLs and the active Moghimi Supabase catalogue.
-- TUN and system-proxy connection modes, TCP latency checks, profile management, DNS/routing/ad-block settings and local diagnostic logs.
-- Local profile/subscription data protected with Windows DPAPI (CurrentUser).
-- GitHub Actions builds a portable package and setup installer; releases are attached to tags.
+## امکانات پیاده‌سازی‌شده
+- **VPN Mode (TUN):** عبور ترافیک سیستم از رابط مجازی Wintun؛ UAC فقط هنگام اتصال نمایش داده می‌شود.
+- **Proxy Mode:** استفاده از Windows System Proxy برای برنامه‌هایی که از پراکسی سیستم پیروی می‌کنند؛ پورت آزاد در لحظه انتخاب و مقادیر قبلی پراکسی بعد از قطع اتصال بازگردانده می‌شود.
+- **انتخاب خودکار بهترین سرور:** با زدن Connect، تمام پروفایل‌ها با یک پراکسی آزمایشی مستقل و درخواست HTTPS واقعی سنجیده می‌شوند؛ انتخاب دستی کاربر هنگام اسکن اولویت دارد.
+- پروفایل‌های VLESS، VMess، Trojan، Shadowsocks، Hysteria2، TUIC، AnyTLS، WireGuard، SOCKS5 و HTTP.
+- ساخت و ویرایش دستی پروفایل، ورود لینک/فایل/کلیپ‌بورد/QR و خروجی لینک/QR.
+- گروه‌بندی کانفیگ‌های دستی، اشتراک‌های شخصی و کانفیگ‌های فعال سایت مقیمی.
+- همگام‌سازی سایت در شروع برنامه و هر شش ساعت؛ دریافت اشتراک‌های شخصی نیز قابل اجراست.
+- DNS از نوع UDP/TCP/TLS/HTTPS، عبور مستقیم LAN و مسدودسازی چند دامنهٔ تبلیغاتی رایج.
+- گزارش محلی، اسکن کیفیت سرورها، ذخیره‌سازی پروفایل‌ها و اشتراک‌ها با Windows DPAPI.
 
-## Security model
-- No antivirus disabling, exclusions, process hiding, obfuscation, persistence tricks or security bypasses.
-- No analytics, ads, tracking SDK, account login, Windows credentials or browser data access.
-- No service-role / Supabase secret key in the client. Only the project's public publishable key is used; access is controlled by RLS.
-- TUN mode asks Windows for elevation at connect time through a dedicated Moghimi tunnel host; the desktop UI remains a standard user process. Cancelling UAC cancels the connection.
-- System Proxy is a separate, user-level option. It saves and restores the previous settings.
-- The app does not auto-connect at launch.
-- Wintun is obtained from the official WireGuard/Wintun distribution and verified against its published SHA-256 before packaging. sing-box is downloaded from its official release and verified before packaging.
+## سازگاری پروتکل و انتقال
+هستهٔ ثابت‌شدهٔ این نسخه sing-box 1.14.4 است. انتقال‌های قابل استفاده: TCP، WebSocket، gRPC، HTTP/2، HTTPUpgrade و QUIC. انتقال‌های mKCP و DomainSocket در sing-box موجود نیستند و XHTTP نیز در این نسخه پشتیبانی نمی‌شود؛ این لینک‌ها بی‌صدا به TCP تبدیل نمی‌شوند و هنگام اتصال با پیام ناسازگاری رد می‌شوند.
 
-## SmartScreen and antivirus
-No developer can guarantee that Microsoft Defender or SmartScreen will never warn on a new application. New/unsigned releases can have unknown reputation. A verified Authenticode publisher signature and consistent release identity can improve trust over time; self-signed certificates do not establish public trust. Never disable Defender to install this app.
+## ساخت و بسته‌بندی
+- Windows 10/11 x64 و .NET 8 self-contained
+- رابط WPF فارسی با جهت RTL، انیمیشن‌های کوتاه و سبک
+- دانلود sing-box 1.14.4 و Wintun 0.14.1 از منابع رسمی با بررسی SHA-256؛ امضای Authenticode خود DLL Wintun نیز در CI بررسی می‌شود.
+- خروجی CI شامل Setup و Portable است.
 
-## Build
-Open `MoghimiVPN.sln` with Visual Studio 2022 (or newer) and build the `MoghimiVPN` project for `win-x64`.
+## مدل امنیتی
+- هیچ‌گاه Defender خاموش نمی‌شود، استثنای آنتی‌ویروس ساخته نمی‌شود و پردازش‌ها پنهان نمی‌شوند.
+- برنامه سرویس مخفی، Analytics، تبلیغات یا ورود به حساب Windows ندارد.
+- کلید Supabase استفاده‌شده public/publishable است؛ هیچ service-role key در کلاینت قرار ندارد و دسترسی داده‌ها به RLS وابسته است.
+- پروفایل‌ها و اشتراک‌ها با DPAPI برای کاربر جاری رمزگذاری می‌شوند؛ فایل‌های موقت sing-box بعد از پایان اتصال پاک می‌شوند.
+- Proxy Mode فقط برنامه‌های سازگار با Windows proxy را پوشش می‌دهد؛ برای تونل سراسری از VPN Mode استفاده کن.
+- اتصال خودکار هنگام شروع ویندوز فعال نیست.
 
-The GitHub Actions workflow downloads the pinned, hash-verified network engine and Wintun binary, builds the app, packages the portable ZIP and creates an Inno Setup installer.
+## SmartScreen و امضای ناشر
+هشدار Defender یا SmartScreen را نمی‌توان تضمین‌شده حذف کرد. باینری‌های فعلی هنوز با گواهی Authenticode ناشر مقیمی امضا نشده‌اند؛ به همین دلیل ممکن است SmartScreen برای ناشر ناشناس هشدار نشان دهد. برای امضای معتبر باید گواهی Code Signing از مرجع مورداعتماد تهیه و دو Secret زیر در GitHub Actions ثبت شوند:
+- `WINDOWS_SIGN_PFX_BASE64`
+- `WINDOWS_SIGN_PFX_PASSWORD`
 
-## Secrets
-No GitHub secret is required for normal CI or for reading the Moghimi Supabase catalogue. Optional Authenticode signing is intentionally not configured until a real certificate is available. Never put certificate private keys, Supabase service-role keys or passwords in source code.
+گواهی self-signed اعتماد عمومی ایجاد نمی‌کند. Defender را برای نصب خاموش نکن.
 
-## Validation status
-A successful CI build proves compilation and packaging only. Before calling a release stable, test on a clean Windows 10 and Windows 11 x64 machine: UAC cancellation, TUN connect/disconnect, DNS, routing, IPv4/IPv6 leak behavior, system-proxy restoration, sleep/resume, network changes, subscription updates, and each protocol/transport against real endpoints.
+## اعتبارسنجی
+CI کامپایل و بسته‌بندی را بررسی می‌کند، تنظیمات sing-box را برای پروتکل‌ها در VPN/Proxy Mode اعتبارسنجی می‌کند و رفت‌وبرگشت لینک و QR را می‌آزماید. این تست‌ها جایگزین تست روی رایانهٔ Windows واقعی نیستند. قبل از انتشار عمومی باید TUN، DNS، مسیرهای IPv4/IPv6، Sleep/Resume، تعویض شبکه، بازیابی Proxy، UAC و هر پروتکل را با سرور واقعی روی Windows 10 و 11 آزمایش کرد.
