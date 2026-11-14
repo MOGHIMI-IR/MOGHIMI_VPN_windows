@@ -114,8 +114,27 @@ public sealed class ConnectionManager : IDisposable
         {
             if (!process.HasExited)
             {
-                process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                // sing-box must close cleanly so it can remove its TUN interface and routes.
+                if (OperatingSystem.IsWindows() && AttachConsole((uint)process.Id))
+                {
+                    try
+                    {
+                        SetConsoleCtrlHandler(IntPtr.Zero, true);
+                        GenerateConsoleCtrlEvent(0, 0); // CTRL_C_EVENT to the attached console
+                    }
+                    finally
+                    {
+                        await Task.Delay(350);
+                        FreeConsole();
+                        SetConsoleCtrlHandler(IntPtr.Zero, false);
+                    }
+                    try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(6)); } catch { }
+                }
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
             }
         }
         catch { }
@@ -148,7 +167,17 @@ public sealed class ConnectionManager : IDisposable
     public void Dispose()
     {
         if (_systemProxyEnabled) SystemProxyController.Restore();
+        // Normal window shutdown uses StopAsync before Dispose; this is a last-resort cleanup.
         try { if (_process is { HasExited: false }) _process.Kill(true); } catch { }
         _process?.Dispose();
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(uint processId);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FreeConsole();
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GenerateConsoleCtrlEvent(uint controlEvent, uint processGroupId);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
 }
