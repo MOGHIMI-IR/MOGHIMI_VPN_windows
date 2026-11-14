@@ -325,8 +325,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnPropertyChanged(string property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 
-    private void Window_Closing(object? sender, CancelEventArgs e)
+    private bool _closeAfterDisconnect;
+    private async void Window_Closing(object? sender, CancelEventArgs e)
     {
+        if (!_closeAfterDisconnect && _connection.IsRunning)
+        {
+            e.Cancel = true;
+            _closeAfterDisconnect = true;
+            _logTimer.Stop();
+            IsEnabled = false;
+            try { await _connection.StopAsync(); }
+            finally
+            {
+                _connection.Dispose();
+                SystemProxyController.Restore();
+                Close();
+            }
+            return;
+        }
         _logTimer.Stop();
         _connection.Dispose();
         SystemProxyController.Restore();
