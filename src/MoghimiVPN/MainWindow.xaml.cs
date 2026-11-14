@@ -323,9 +323,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             _connectedProfile = chosen;
             _connectedSince = DateTimeOffset.Now;
+            _isConnected = true;
             _sessionTimer.Start();
             UpdateSessionClock();
-            _isConnected = true;
             ConnectionStatus.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN"
                 ? "VPN فعال"
                 : "Proxy فعال";
