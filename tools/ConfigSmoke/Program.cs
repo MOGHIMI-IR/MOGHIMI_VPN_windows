@@ -95,6 +95,30 @@ try
                     throw new InvalidOperationException(output.Trim());
 
                 Console.WriteLine($"PASS  {profile.Protocol,-12}  {mode}");
+                if (mode == "TUN")
+                {
+                    var probePath = Path.Combine(tempRoot, $"{profile.Protocol}-probe.json");
+                    var probeJson = SingBoxConfigBuilder.BuildProbe(profile, 41873);
+                    await File.WriteAllTextAsync(probePath, probeJson, Encoding.UTF8);
+                    var probeStart = new ProcessStartInfo
+                    {
+                        FileName = engine,
+                        Arguments = $"check -c \"{probePath}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+                    using var probeProcess = Process.Start(probeStart)
+                        ?? throw new InvalidOperationException("Could not start sing-box probe-config check.");
+                    var probeOut = probeProcess.StandardOutput.ReadToEndAsync();
+                    var probeErr = probeProcess.StandardError.ReadToEndAsync();
+                    await probeProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                    var probeDetails = (await probeOut) + Environment.NewLine + (await probeErr);
+                    if (probeProcess.ExitCode != 0)
+                        throw new InvalidOperationException("Latency probe config: " + probeDetails.Trim());
+                    Console.WriteLine($"PASS  {profile.Protocol,-12}  latency probe");
+                }
             }
             catch (Exception error)
             {
@@ -109,7 +133,7 @@ finally
     try { Directory.Delete(tempRoot, recursive: true); } catch { }
 }
 
-Console.WriteLine($"Validated {profiles.Count * 2 - failures.Count} of {profiles.Count * 2} configs.");
+Console.WriteLine($"Validated protocol, mode and probe configurations; failures: {failures.Count}.");
 if (failures.Count > 0)
 {
     Console.Error.WriteLine(string.Join(Environment.NewLine, failures));
