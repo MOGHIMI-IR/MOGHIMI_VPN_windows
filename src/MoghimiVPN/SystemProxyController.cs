@@ -45,11 +45,20 @@ public static class SystemProxyController
             else File.Move(temporary, BackupPath);
         }
 
-        key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
-        key.SetValue("ProxyServer", $"http={host}:{port};https={host}:{port}", RegistryValueKind.String);
-        key.SetValue("ProxyOverride", "<local>;localhost;127.*", RegistryValueKind.String);
-        key.DeleteValue("AutoConfigURL", throwOnMissingValue: false);
-        Refresh();
+        try
+        {
+            key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
+            key.SetValue("ProxyServer", $"http={host}:{port};https={host}:{port}", RegistryValueKind.String);
+            key.SetValue("ProxyOverride", "<local>;localhost;127.*", RegistryValueKind.String);
+            key.DeleteValue("AutoConfigURL", throwOnMissingValue: false);
+            Refresh();
+        }
+        catch
+        {
+            // Roll back any partial registry update before surfacing the failure.
+            Restore();
+            throw;
+        }
     }
 
     public static void Restore()

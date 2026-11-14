@@ -20,6 +20,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private CancellationTokenSource? _connectScanCts;
     private CancellationTokenSource? _manualScanCts;
     private bool _manualScanBusy;
+    private bool _subscriptionRefreshRunning;
     private bool _closeAfterBusyOperation;
     private ProxyProfile? _selectedProfile;
     private ProxyProfile? _connectedProfile;
@@ -163,6 +164,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_subscriptionRefreshRunning)
+        {
+            MessageBox.Show("به‌روزرسانی اشتراک هنوز تمام نشده؛ بعد از پایان آن اتصال را بزن.",
+                "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         if (_manualScanBusy)
         {
             MessageBox.Show("تست دستی سرورها در حال اجراست؛ پس از پایان آن اتصال را شروع کن.",
@@ -656,6 +664,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AddSubscription_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
+        {
+            MessageBox.Show("تا پایان عملیات جاری، اشتراک جدید اضافه نکن.",
+                "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         var url = PromptDialog.Show(this, "افزودن اشتراک", "آدرس HTTPS یا HTTP اشتراک را وارد کن:");
         if (string.IsNullOrWhiteSpace(url)) return;
         if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var subscriptionUri) ||
@@ -681,7 +695,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
             MessageBox.Show("هنگام تست یا اتصال، اشتراک‌ها به‌روزرسانی نمی‌شوند.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -692,6 +706,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MessageBox.Show("ابتدا یک اشتراک انتخاب کن.", "اشتراک", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        _subscriptionRefreshRunning = true;
         try
         {
             var profiles = await _subscriptions.FetchAsync(_selectedSubscription);
@@ -717,7 +732,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task SyncCloudAsync(bool silent)
     {
-        if (_cloudSyncRunning) return;
+        if (_cloudSyncRunning || _subscriptionRefreshRunning) return;
         if (_connectionBusy || _manualScanBusy)
         {
             if (!silent)
