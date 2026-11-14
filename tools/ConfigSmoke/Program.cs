@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using MoghimiVPN;
 
 if (args.Length != 1)
@@ -127,6 +128,62 @@ else
 {
     failures.Add("subscription size: oversized response was accepted.");
     Console.Error.WriteLine("FAIL  subscription size: oversized response was accepted.");
+}
+
+var cloudTextEntries = JsonSerializer.Serialize(new[]
+{
+    new
+    {
+        title = "Cloud test profile",
+        entry_type = "text",
+        config_text = ProfileCodec.Encode(profiles[0]),
+        file_path = (string?)null
+    }
+});
+try
+{
+    using var http = new HttpClient(new SmokeCloudHandler(cloudTextEntries));
+    var fetched = await new CloudSync(http).FetchActiveProfilesAsync();
+    if (fetched.Count != 1 ||
+        fetched[0].SubscriptionId != "moghimi-cloud" ||
+        fetched[0].Protocol != profiles[0].Protocol)
+        throw new InvalidOperationException("Cloud sync did not import the active text entry correctly.");
+    Console.WriteLine("PASS  cloud sync     active Supabase text entry");
+}
+catch (Exception error)
+{
+    failures.Add("cloud text entry: " + error.Message);
+    Console.Error.WriteLine("FAIL  cloud sync     active Supabase text entry: " + error.Message);
+}
+
+var cloudFileEntries = JsonSerializer.Serialize(new[]
+{
+    new
+    {
+        title = "Cloud file",
+        entry_type = "file",
+        config_text = (string?)null,
+        file_path = "configs/remote.txt"
+    }
+});
+var externalStorageBlocked = false;
+try
+{
+    using var http = new HttpClient(new SmokeCloudHandler(
+        cloudFileEntries,
+        signedUrl: "https://attacker.example/storage/v1/object/sign/v2ray-files/remote.txt?token=test"));
+    await new CloudSync(http).FetchActiveProfilesAsync();
+}
+catch (InvalidOperationException error) when (error.Message.Contains("خارج از دامنه", StringComparison.Ordinal))
+{
+    externalStorageBlocked = true;
+}
+if (externalStorageBlocked)
+    Console.WriteLine("PASS  cloud sync     foreign signed storage URL blocked");
+else
+{
+    failures.Add("cloud storage: external signed URL was accepted.");
+    Console.Error.WriteLine("FAIL  cloud sync     external signed storage URL was accepted.");
 }
 
 var tempRoot = Path.Combine(Path.GetTempPath(), "MoghimiVPN-ConfigSmoke-" + Guid.NewGuid().ToString("N"));
@@ -264,5 +321,50 @@ internal sealed class SmokeResponseHandler : HttpMessageHandler
             RequestMessage = new HttpRequestMessage(request.Method, _finalUri ?? request.RequestUri)
         };
         return Task.FromResult(response);
+    }
+}
+
+
+internal sealed class SmokeCloudHandler : HttpMessageHandler
+{
+    private readonly string _entriesJson;
+    private readonly string? _signedUrl;
+
+    public SmokeCloudHandler(string entriesJson, string? signedUrl = null)
+    {
+        _entriesJson = entriesJson;
+        _signedUrl = signedUrl;
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        var path = request.RequestUri?.AbsolutePath ?? "";
+        if (request.Method == HttpMethod.Get &&
+            path == "/rest/v1/v2ray_entries")
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_entriesJson, Encoding.UTF8, "application/json"),
+                RequestMessage = new HttpRequestMessage(request.Method, request.RequestUri)
+            });
+        }
+
+        if (request.Method == HttpMethod.Post &&
+            path.Contains("/storage/v1/object/sign/", StringComparison.Ordinal))
+        {
+            var json = JsonSerializer.Serialize(new { signedURL = _signedUrl });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+                RequestMessage = new HttpRequestMessage(request.Method, request.RequestUri)
+            });
+        }
+
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            RequestMessage = new HttpRequestMessage(request.Method, request.RequestUri)
+        });
     }
 }
