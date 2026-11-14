@@ -45,16 +45,54 @@ public static class SingBoxConfigBuilder
             });
         }
 
-        var dnsAddress = settings.DnsServer.Trim();
-        if (string.IsNullOrWhiteSpace(dnsAddress)) dnsAddress = "1.1.1.1";
-        if (!dnsAddress.Contains("://", StringComparison.Ordinal)) dnsAddress = "udp://" + dnsAddress;
+        var dnsInput = settings.DnsServer.Trim();
+        if (string.IsNullOrWhiteSpace(dnsInput)) dnsInput = "1.1.1.1";
+
+        var dnsType = "udp";
+        var dnsServer = dnsInput;
+        var dnsPort = 0;
+        var dnsPath = "";
+        if (Uri.TryCreate(dnsInput, UriKind.Absolute, out var dnsUri) &&
+            dnsInput.Contains("://", StringComparison.Ordinal))
+        {
+            dnsType = dnsUri.Scheme.ToLowerInvariant() switch
+            {
+                "udp" => "udp",
+                "tcp" => "tcp",
+                "tls" or "dot" => "tls",
+                "https" or "doh" => "https",
+                _ => throw new InvalidOperationException("نوع DNS واردشده پشتیبانی نمی‌شود؛ از udp://، tcp://، tls:// یا https:// استفاده کن.")
+            };
+            dnsServer = dnsUri.Host;
+            if (!dnsUri.IsDefaultPort) dnsPort = dnsUri.Port;
+            if (dnsType == "https") dnsPath = string.IsNullOrWhiteSpace(dnsUri.AbsolutePath) ? "/dns-query" : dnsUri.AbsolutePath;
+        }
+
+        if (string.IsNullOrWhiteSpace(dnsServer))
+            throw new InvalidOperationException("آدرس DNS معتبر نیست.");
+
+        var dnsConfig = new JsonObject
+        {
+            ["type"] = dnsType,
+            ["tag"] = "dns-remote",
+            ["server"] = dnsServer,
+            ["detour"] = "proxy"
+        };
+        if (dnsPort > 0) dnsConfig["server_port"] = dnsPort;
+        if (dnsType == "https")
+        {
+            dnsConfig["path"] = dnsPath;
+            dnsConfig["tls"] = new JsonObject { ["enabled"] = true, ["server_name"] = dnsServer };
+        }
+        else if (dnsType == "tls")
+        {
+            dnsConfig["tls"] = new JsonObject { ["enabled"] = true, ["server_name"] = dnsServer };
+        }
         var root = new JsonObject
         {
             ["log"] = new JsonObject { ["level"] = "info", ["timestamp"] = true, ["output"] = logFile },
             ["dns"] = new JsonObject {
-                ["servers"] = new JsonArray(new JsonObject {
-                    ["tag"] = "dns-remote", ["address"] = dnsAddress, ["detour"] = "proxy"
-                }),
+                ["servers"] = new JsonArray(dnsConfig),
                 ["final"] = "dns-remote"
             },
             ["inbounds"] = inbounds,
