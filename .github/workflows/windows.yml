@@ -71,9 +71,13 @@ jobs:
           $ErrorActionPreference = "Stop"
           $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
           dotnet restore MoghimiVPN.sln
+          if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed." }
           dotnet publish src/MoghimiVPN/MoghimiVPN.csproj -c Release -r win-x64 --self-contained true -p:Version=$version -p:PublishSingleFile=false -o publish
+          if ($LASTEXITCODE -ne 0) { throw "WPF app publish failed." }
           dotnet publish src/TunnelHost/MoghimiVPN.TunnelHost.csproj -c Release -r win-x64 --self-contained true -p:Version=$version -p:PublishSingleFile=false -o publish-host
-          Copy-Item "publish-host\*" "publish\" -Recurse -Force
+          if ($LASTEXITCODE -ne 0) { throw "Tunnel host publish failed." }
+          New-Item -ItemType Directory -Force "publish" | Out-Null
+          Copy-Item -Path "publish-host\*" -Destination "publish" -Recurse -Force
           New-Item -ItemType Directory -Force "publish\runtime" | Out-Null
           Copy-Item "runtime\sing-box.exe" "publish\runtime\sing-box.exe" -Force
           Copy-Item "runtime\wintun.dll" "publish\runtime\wintun.dll" -Force
