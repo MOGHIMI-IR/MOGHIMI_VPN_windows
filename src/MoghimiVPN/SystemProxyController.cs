@@ -13,10 +13,10 @@ public static class SystemProxyController
 
     private sealed class Snapshot
     {
-        public object? ProxyEnable { get; set; }
-        public object? ProxyServer { get; set; }
-        public object? ProxyOverride { get; set; }
-        public object? AutoConfigURL { get; set; }
+        public int? ProxyEnable { get; set; }
+        public string? ProxyServer { get; set; }
+        public string? ProxyOverride { get; set; }
+        public string? AutoConfigURL { get; set; }
     }
 
     [DllImport("wininet.dll", SetLastError = true)]
@@ -29,10 +29,10 @@ public static class SystemProxyController
         if (!File.Exists(BackupPath))
         {
             var snapshot = new Snapshot {
-                ProxyEnable = key.GetValue("ProxyEnable"),
-                ProxyServer = key.GetValue("ProxyServer"),
-                ProxyOverride = key.GetValue("ProxyOverride"),
-                AutoConfigURL = key.GetValue("AutoConfigURL")
+                ProxyEnable = key.GetValue("ProxyEnable") is int enabled ? enabled : null,
+                ProxyServer = key.GetValue("ProxyServer") as string,
+                ProxyOverride = key.GetValue("ProxyOverride") as string,
+                AutoConfigURL = key.GetValue("AutoConfigURL") as string
             };
             Directory.CreateDirectory(Path.GetDirectoryName(BackupPath)!);
             File.WriteAllText(BackupPath, JsonSerializer.Serialize(snapshot));
