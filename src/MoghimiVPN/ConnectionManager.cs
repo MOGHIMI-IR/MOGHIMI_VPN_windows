@@ -11,6 +11,7 @@ public sealed class ConnectionManager : IDisposable
     private bool _systemProxyEnabled;
     private int _systemProxyPort = 2080;
     private readonly string _enginePath = Path.Combine(AppContext.BaseDirectory, "runtime", "sing-box.exe");
+    private readonly string _tunnelHostPath = Path.Combine(AppContext.BaseDirectory, "tunnel-host", "MoghimiVPN.TunnelHost.exe");
     public event EventHandler<string>? LogMessage;
     public event EventHandler? EngineExited;
     public bool IsRunning => _process is { HasExited: false };
@@ -20,8 +21,8 @@ public sealed class ConnectionManager : IDisposable
         if (IsRunning) throw new InvalidOperationException("VPN از قبل در حال اجراست.");
         if (!File.Exists(_enginePath))
             throw new FileNotFoundException("هسته sing-box پیدا نشد. بسته نصب را کامل نصب یا دوباره دریافت کن.", _enginePath);
-        if (settings.ConnectionMode == "TUN" && !File.Exists(Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe")))
-            throw new FileNotFoundException("راه‌انداز امن تونل پیدا نشد. بسته نصب را کامل نصب کن.");
+        if (!File.Exists(_tunnelHostPath))
+            throw new FileNotFoundException("راه‌انداز اتصال پیدا نشد. پوشه tunnel-host را کامل نصب یا دوباره دریافت کن.", _tunnelHostPath);
         if (settings.ConnectionMode == "TUN" && !File.Exists(Path.Combine(AppContext.BaseDirectory, "runtime", "wintun.dll")))
             throw new FileNotFoundException("فایل رسمی Wintun کنار هسته پیدا نشد.");
 
@@ -41,7 +42,7 @@ public sealed class ConnectionManager : IDisposable
             await File.WriteAllTextAsync(configPath, json, cancellationToken);
             await ValidateConfigAsync(configPath, cancellationToken);
 
-            var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
+            var hostPath = _tunnelHostPath;
             var startInfo = new ProcessStartInfo
             {
                 // The host watches the desktop parent in both modes so an app crash cannot

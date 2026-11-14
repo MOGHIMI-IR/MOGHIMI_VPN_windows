@@ -4,6 +4,9 @@
         Title="Moghimi VPN" Width="1240" Height="790" MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen" Background="#0B0D12" Foreground="#F3F5F8"
         FlowDirection="RightToLeft" FontFamily="Segoe UI" Closing="Window_Closing">
+    <Window.Icon>
+        <BitmapImage UriSource="pack://application:,,,/Assets/moghimi-vpn-icon.png"/>
+    </Window.Icon>
     <Window.Resources>
         <CollectionViewSource x:Key="ProfilesView" Source="{Binding Profiles}">
             <CollectionViewSource.GroupDescriptions>
