@@ -142,7 +142,7 @@ public static class SingBoxConfigBuilder
     private static void AddTlsAndTransport(JsonObject o, ProxyProfile p)
     {
         var security = p.Security.ToLowerInvariant();
-        if (security is "tls" or "reality" or "xtls" || p.Protocol is "trojan" or "vmess")
+        if ((security is "tls" or "reality" or "xtls") || (p.Protocol is "trojan" or "vmess"))
             o["tls"] = BuildTls(p, forceTls: p.Protocol is "trojan");
         var network = p.Network.ToLowerInvariant();
         switch (network)
