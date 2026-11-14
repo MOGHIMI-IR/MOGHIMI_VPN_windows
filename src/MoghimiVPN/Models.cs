@@ -39,6 +39,11 @@ public sealed class ProxyProfile : INotifyPropertyChanged
     public string SubscriptionId { get; set; } = "";
     public int LatencyMs { get => _latencyMs; set { _latencyMs = value; OnPropertyChanged(); } }
     public string Subtitle => $"{Protocol.ToUpperInvariant()}  ·  {Server}:{Port}";
+    public string SourceGroup => SubscriptionId == "moghimi-cloud"
+        ? "کانفیگ‌های سایت مقیمی"
+        : string.IsNullOrWhiteSpace(SubscriptionId)
+            ? "کانفیگ‌های دستی"
+            : "اشتراک‌های شخصی";
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new(name));
 }
