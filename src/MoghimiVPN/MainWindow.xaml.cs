@@ -15,6 +15,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromHours(6) };
     private bool _cloudSyncRunning;
+    private bool _connectionBusy;
+    private CancellationTokenSource? _connectScanCts;
     private ProxyProfile? _selectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
@@ -67,7 +69,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SaveSettingsFromUI()
     {
         var s = ProfileStore.Instance.State.Settings;
-        s.ConnectionMode = (ConnectionModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "TUN";
+        s.ConnectionMode = (ConnectionModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "TUN";
         s.DnsServer = string.IsNullOrWhiteSpace(DnsTextBox.Text) ? "1.1.1.1" : DnsTextBox.Text.Trim();
         s.BlockAds = BlockAdsCheck.IsChecked == true;
         s.BypassLan = BypassLanCheck.IsChecked == true;
@@ -101,7 +103,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SelectedProfileLatency.Text = selected is null || selected.LatencyMs < 0 ? "پینگ آزمایش نشده" : $"{selected.LatencyMs} ms";
         ProfileCountSummary.Text = Profiles.Count.ToString();
         DnsSummary.Text = ProfileStore.Instance.State.Settings.DnsServer;
-        ModeSummary.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN" ? "TUN سراسری" : "System Proxy";
+        ModeSummary.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN" ? "VPN Mode" : "Proxy Mode";
         ConnectionStatus.Text = _isConnected ? "متصل" : "قطع";
         ConnectButton.Content = _isConnected ? "قطع اتصال" : "اتصال امن";
         HeaderStatus.Text = _isConnected ? "تونل فعال" : "آماده اتصال";
@@ -113,14 +115,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _isConnected = false;
         ConnectionStatus.Text = message;
+        ProbeStatus.Text = "آماده اتصال هوشمند";
+        ProbeProgress.Visibility = Visibility.Collapsed;
         ConnectButton.Content = "اتصال امن";
         HeaderStatus.Text = "قطع";
+        StopOrbAnimation();
         StatusDot.Fill = System.Windows.Media.Brushes.Goldenrod;
         RefreshLogs();
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_connectionBusy)
+        {
+            _connectScanCts?.Cancel();
+            ProbeStatus.Text = "درخواست لغو ثبت شد…";
+            return;
+        }
+
         if (_connection.IsRunning)
         {
             await _connection.StopAsync();
@@ -129,38 +141,185 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        var profile = ProfilesList.SelectedItem as ProxyProfile ?? _selectedProfile ?? Profiles.FirstOrDefault();
-        if (profile is null)
+        if (Profiles.Count == 0)
         {
-            MessageBox.Show("اول یک کانفیگ اضافه و انتخاب کن.", "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("اول یک کانفیگ اضافه کن یا کانفیگ‌های سایت مقیمی را همگام‌سازی کن.",
+                "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
             Navigate(1, "مدیریت کانفیگ‌ها", "سرورها را اضافه، انتخاب و تست کن");
             return;
         }
 
         SaveSettingsFromUI();
-        ConnectButton.IsEnabled = false;
-        HeaderStatus.Text = "در حال آماده‌سازی";
-        ConnectionStatus.Text = "در حال بررسی سرور و تنظیمات…";
+        var selectedAtStart = (ProfilesList.SelectedItem as ProxyProfile)?.Id;
+        _connectScanCts = new CancellationTokenSource();
+        _connectionBusy = true;
+        var token = _connectScanCts.Token;
+        ConnectButton.IsEnabled = true;
+        HeaderStatus.Text = "در حال بررسی";
+        ConnectionStatus.Text = "در حال انتخاب بهترین سرور…";
+        ProbeStatus.Text = "در حال سنجش کیفیت واقعی سرورها";
+        ProbeProgress.Visibility = Visibility.Visible;
+        ProbeProgress.Value = 0;
+        StartOrbAnimation();
+
         try
         {
-            await _connection.StartAsync(profile, ProfileStore.Instance.State.Settings);
+            var best = await ProbeAllProfilesAsync(token);
+
+            token.ThrowIfCancellationRequested();
+
+            // A new manual selection made while probes were running always wins,
+            // matching the Android client's guarded selection behavior.
+            var currentSelection = ProfilesList.SelectedItem as ProxyProfile;
+            var userChangedSelection = currentSelection is not null &&
+                                       currentSelection.Id != selectedAtStart;
+            var chosen = userChangedSelection ? currentSelection : best;
+
+            if (chosen is null)
+                throw new InvalidOperationException(
+                    "هیچ سرور پاسخ‌گویی پیدا نشد. اتصال شروع نشد؛ کانفیگ‌ها یا اینترنت را بررسی کن.");
+
+            ProfilesList.SelectedItem = chosen;
+            _selectedProfile = chosen;
+            ProfileStore.Instance.State.ActiveProfileId = chosen.Id;
+            ProfileStore.Instance.Save();
+
+            ProbeStatus.Text = chosen.LatencyMs >= 0
+                ? $"بهترین مسیر: {chosen.Name}  ·  {chosen.LatencyMs} ms"
+                : $"انتخاب دستی: {chosen.Name}";
+
+            ConnectionStatus.Text = "سرور انتخاب شد؛ در حال برقراری اتصال…";
+            HeaderStatus.Text = "در حال اتصال";
+            AppendLog($"Connect flow selected: {chosen.Name} ({chosen.LatencyMs} ms)");
+
+            await _connection.StartAsync(chosen, ProfileStore.Instance.State.Settings, token);
+
             _isConnected = true;
-            ConnectionStatus.Text = "تونل فعال";
+            ConnectionStatus.Text = ProfileStore.Instance.State.Settings.ConnectionMode == "TUN"
+                ? "VPN فعال"
+                : "Proxy فعال";
             HeaderStatus.Text = "متصل";
             StatusDot.Fill = System.Windows.Media.Brushes.LimeGreen;
-            AppendLog($"Connected profile: {profile.Name}");
+            ProbeStatus.Text = $"اتصال برقرار شد · {chosen.Name}";
+            AppendLog($"Connected profile: {chosen.Name}");
+        }
+        catch (OperationCanceledException)
+        {
+            _isConnected = false;
+            SetDisconnected("تست یا اتصال لغو شد");
+            AppendLog("Connect flow cancelled by user.");
         }
         catch (Exception ex)
         {
             _isConnected = false;
             SetDisconnected("اتصال برقرار نشد");
+            AppendLog("Connect flow failed: " + ex.Message);
             MessageBox.Show(ex.Message, "خطا در اتصال", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
+            _connectionBusy = false;
+            _connectScanCts?.Dispose();
+            _connectScanCts = null;
+            ProbeProgress.Visibility = Visibility.Collapsed;
+            StopOrbAnimation();
             ConnectButton.IsEnabled = true;
             UpdateDashboard();
         }
+    }
+
+    private async Task<ProxyProfile?> ProbeAllProfilesAsync(CancellationToken cancellationToken)
+    {
+        var candidates = Profiles.ToList();
+        if (candidates.Count == 0) return null;
+
+        var completed = 0;
+        var gate = new SemaphoreSlim(4, 4);
+        var tasks = candidates.Select(async profile =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var latency = await ConnectionLatencyProbe.TestAsync(profile, cancellationToken);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    profile.LatencyMs = latency;
+                    completed++;
+                    ProbeProgress.Value = completed * 100.0 / candidates.Count;
+                    ProbeStatus.Text = $"در حال بررسی {completed} از {candidates.Count} سرور…";
+                });
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    profile.LatencyMs = -1;
+                    completed++;
+                    ProbeProgress.Value = completed * 100.0 / candidates.Count;
+                    ProbeStatus.Text = $"در حال بررسی {completed} از {candidates.Count} سرور…";
+                    AppendLog($"Probe failed for {profile.Name}: {ex.Message}");
+                });
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+        var best = candidates
+            .Where(p => p.LatencyMs >= 0)
+            .OrderBy(p => p.LatencyMs)
+            .ThenBy(p => p.Id == ProfileStore.Instance.State.ActiveProfileId ? 0 : 1)
+            .FirstOrDefault();
+
+        return best;
+    }
+
+    private void StartOrbAnimation()
+    {
+        if (!IsLoaded) return;
+        if (ConnectButton.Template.FindName("OrbPulse", ConnectButton) is not FrameworkElement halo ||
+            halo.RenderTransform is not ScaleTransform scale)
+            return;
+
+        var pulse = new System.Windows.Media.Animation.DoubleAnimation(
+            1.0, 1.14, TimeSpan.FromSeconds(1.15))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase
+            {
+                EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut
+            }
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+        halo.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+            0.26, 0.62, TimeSpan.FromSeconds(1.15))
+        {
+            AutoReverse = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        });
+    }
+
+    private void StopOrbAnimation()
+    {
+        if (ConnectButton?.Template?.FindName("OrbPulse", ConnectButton) is not FrameworkElement halo)
+            return;
+        if (halo.RenderTransform is ScaleTransform scale)
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        }
+        halo.BeginAnimation(OpacityProperty, null);
+        halo.Opacity = 0.42;
     }
 
     private void AddLink_Click(object sender, RoutedEventArgs e)
@@ -229,27 +388,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (Profiles.Count == 0) return;
         var button = sender as Button;
-        if (button is not null) button.IsEnabled = false;
+        button?.SetCurrentValue(IsEnabledProperty, false);
+        using var cts = new CancellationTokenSource();
+        ProbeProgress.Visibility = Visibility.Visible;
+        ProbeProgress.Value = 0;
+        ProbeStatus.Text = "در حال تست واقعی مسیر سرورها…";
+        StartOrbAnimation();
         try
         {
-            var gate = new SemaphoreSlim(8);
-            var tasks = Profiles.Select(async profile =>
+            var best = await ProbeAllProfilesAsync(cts.Token);
+            if (best is not null)
             {
-                await gate.WaitAsync();
-                try
-                {
-                    var latency = await ConnectionManager.PingAsync(profile.Server, profile.Port);
-                    await Dispatcher.InvokeAsync(() => profile.LatencyMs = latency);
-                }
-                finally { gate.Release(); }
-            });
-            await Task.WhenAll(tasks);
-            var best = Profiles.Where(p => p.LatencyMs >= 0).OrderBy(p => p.LatencyMs).FirstOrDefault();
-            if (best is not null && _selectedProfile is null) ProfilesList.SelectedItem = best;
-            AppendLog("Latency scan completed.");
-            UpdateDashboard();
+                ProfilesList.SelectedItem = best;
+                ProbeStatus.Text = $"بهترین سرور: {best.Name} · {best.LatencyMs} ms";
+            }
+            else
+            {
+                ProbeStatus.Text = "سرور پاسخ‌گو پیدا نشد";
+                MessageBox.Show("هیچ سروری پاسخ HTTPS معتبر نداد.", "تست سرورها",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            SaveState();
         }
-        finally { if (button is not null) button.IsEnabled = true; }
+        finally
+        {
+            ProbeProgress.Visibility = Visibility.Collapsed;
+            StopOrbAnimation();
+            if (button is not null) button.IsEnabled = true;
+        }
     }
 
     private void AddSubscription_Click(object sender, RoutedEventArgs e)
