@@ -219,10 +219,15 @@
                                     <TextBlock Text="افزودن لینک، واردکردن فایل و تست تأخیر" Foreground="#8D98A9" FontSize="11" Margin="0,4,0,0"/>
                                 </StackPanel>
                                 <WrapPanel HorizontalAlignment="Left">
+                                    <Button Click="ManualProfile_Click" Margin="4,0" Content="+ پروفایل دستی"/>
                                     <Button Click="AddLink_Click" Margin="4,0" Content="+ افزودن لینک"/>
                                     <Button Click="PasteClipboard_Click" Margin="4,0" Content="چسباندن از کلیپ‌بورد"/>
                                     <Button Click="ImportFile_Click" Margin="4,0" Content="واردکردن فایل"/>
-                                    <Button Click="ScanLatency_Click" Margin="4,0" Content="◉ تست پینگ"/>
+                                    <Button Click="ImportQr_Click" Margin="4,0" Content="واردکردن QR"/>
+                                    <Button Click="EditProfile_Click" Margin="4,0" Content="ویرایش"/>
+                                    <Button Click="ShareProfile_Click" Margin="4,0" Content="کپی لینک"/>
+                                    <Button Click="ExportQr_Click" Margin="4,0" Content="خروجی QR"/>
+                                    <Button Click="ScanLatency_Click" Margin="4,0" Content="◉ تست کیفیت"/>
                                     <Button Click="RemoveProfile_Click" Margin="4,0" Content="حذف انتخاب‌شده"/>
                                 </WrapPanel>
                             </DockPanel>
