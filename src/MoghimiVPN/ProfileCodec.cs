@@ -1,0 +1,193 @@
+using System.Text;
+using System.Text.Json;
+using System.Web;
+
+namespace MoghimiVPN;
+
+public static class ProfileCodec
+{
+    public static ProxyProfile? Decode(string input)
+    {
+        var raw = input.Trim().Trim('\uFEFF');
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var schemeEnd = raw.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd <= 0) return null;
+        var scheme = raw[..schemeEnd].ToLowerInvariant();
+        if (scheme == "vmess") return DecodeVmess(raw);
+        if (scheme == "ss") return DecodeShadowsocks(raw);
+
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri)) return null;
+        var q = HttpUtility.ParseQueryString(uri.Query);
+        var profile = new ProxyProfile
+        {
+            Name = DecodeName(uri.Fragment),
+            Protocol = scheme switch
+            {
+                "vless" => "vless",
+                "trojan" => "trojan",
+                "hysteria2" or "hy2" => "hysteria2",
+                "tuic" => "tuic",
+                "anytls" => "anytls",
+                "socks" or "socks5" or "socks5h" => "socks",
+                "http" or "https" => "http",
+                "wireguard" or "wg" => "wireguard",
+                _ => ""
+            },
+            Server = uri.Host,
+            Port = uri.IsDefaultPort ? DefaultPort(scheme) : uri.Port,
+            Uuid = Uri.UnescapeDataString(uri.UserInfo.Split(':')[0]),
+            Password = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo[(uri.UserInfo.IndexOf(':') + 1)..]) : "",
+            Network = q["type"] ?? q["network"] ?? "tcp",
+            Path = q["path"] ?? q["serviceName"] ?? "/",
+            Host = q["host"] ?? "",
+            ServiceName = q["serviceName"] ?? "",
+            Security = q["security"] ?? (scheme is "hysteria2" or "hy2" or "tuic" or "anytls" or "https" ? "tls" : "none"),
+            Sni = q["sni"] ?? q["peer"] ?? "",
+            Fingerprint = q["fp"] ?? "chrome",
+            PublicKey = q["pbk"] ?? q["public_key"] ?? "",
+            ShortId = q["sid"] ?? q["short_id"] ?? "",
+            Flow = q["flow"] ?? "",
+            Alpn = q["alpn"] ?? "",
+            AllowInsecure = q["allowInsecure"] == "1" || q["insecure"] == "1",
+            Method = q["method"] ?? "chacha20-ietf-poly1305",
+            ObfsType = q["obfs"] ?? "",
+            ObfsPassword = q["obfs-password"] ?? q["obfs_password"] ?? "",
+            PrivateKey = q["private_key"] ?? "",
+            PeerPublicKey = q["public_key"] ?? "",
+            PreSharedKey = q["preshared_key"] ?? "",
+            LocalAddress = q["address"] ?? "10.0.0.2/32",
+            AllowedIps = q["allowed_ips"] ?? "0.0.0.0/0,::/0"
+        };
+
+        if (profile.Protocol == "wireguard" && string.IsNullOrWhiteSpace(profile.PrivateKey))
+            profile.PrivateKey = profile.Uuid;
+        if (profile.Protocol == "shadowsocks" || string.IsNullOrWhiteSpace(profile.Protocol))
+            return null;
+        if (string.IsNullOrWhiteSpace(profile.Server) || profile.Port is < 1 or > 65535) return null;
+        if (profile.Protocol is "vless" or "vmess" && string.IsNullOrWhiteSpace(profile.Uuid)) return null;
+        if (profile.Protocol is "trojan" or "anytls" or "hysteria2" && string.IsNullOrWhiteSpace(profile.Password))
+            profile.Password = profile.Uuid;
+        if (profile.Protocol == "tuic" && string.IsNullOrWhiteSpace(profile.Password))
+            profile.Password = q["password"] ?? "";
+        if (profile.Protocol == "vless" && profile.Security == "reality" && string.IsNullOrWhiteSpace(profile.PublicKey))
+            return null;
+        return profile;
+    }
+
+    public static List<ProxyProfile> DecodeMany(string body)
+    {
+        var text = body.Trim().Trim('\uFEFF');
+        if (string.IsNullOrWhiteSpace(text)) return [];
+        var decoded = TryBase64(text);
+        if (!string.IsNullOrWhiteSpace(decoded) && !decoded.Contains("://", StringComparison.Ordinal))
+        {
+            // Base64 may be a JSON VMess payload or a text subscription; use only when it
+            // decodes to printable UTF-8 and contains a known URI scheme.
+            if (decoded.Contains("vless://", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Contains("vmess://", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Contains("trojan://", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Contains("ss://", StringComparison.OrdinalIgnoreCase) ||
+                decoded.Contains("hy2://", StringComparison.OrdinalIgnoreCase))
+                text = decoded;
+        }
+        var result = new List<ProxyProfile>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var p = Decode(line);
+            if (p is null) continue;
+            var key = $"{p.Protocol}|{p.Server}|{p.Port}|{p.Uuid}|{p.Password}";
+            if (seen.Add(key)) result.Add(p);
+        }
+        return result;
+    }
+
+    private static ProxyProfile? DecodeVmess(string raw)
+    {
+        var payload = TryBase64(raw[(raw.IndexOf("://", StringComparison.Ordinal) + 3)..]);
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            string Get(string key, string fallback = "") =>
+                root.TryGetProperty(key, out var value) ? value.ToString() : fallback;
+            if (!int.TryParse(Get("port"), out var port)) port = 443;
+            return new ProxyProfile
+            {
+                Name = Get("ps", "VMess"),
+                Protocol = "vmess",
+                Server = Get("add"),
+                Port = port,
+                Uuid = Get("id"),
+                Encryption = Get("scy", "auto"),
+                Network = Get("net", "tcp"),
+                Path = Get("path", "/"),
+                Host = Get("host"),
+                Security = string.IsNullOrWhiteSpace(Get("tls")) ? "none" : "tls",
+                Sni = Get("sni"),
+                AllowInsecure = Get("allowInsecure") == "1"
+            };
+        }
+        catch { return null; }
+    }
+
+    private static ProxyProfile? DecodeShadowsocks(string raw)
+    {
+        try
+        {
+            var withoutScheme = raw[5..];
+            var fragmentSplit = withoutScheme.Split('#', 2);
+            var main = fragmentSplit[0];
+            var name = fragmentSplit.Length > 1 ? Uri.UnescapeDataString(fragmentSplit[1]) : "Shadowsocks";
+            string methodPassword;
+            string hostPort;
+            var at = main.LastIndexOf('@');
+            if (at >= 0)
+            {
+                var user = main[..at];
+                hostPort = main[(at + 1)..];
+                methodPassword = user.Contains(':') ? user : TryBase64(user) ?? user;
+            }
+            else
+            {
+                var decoded = TryBase64(main) ?? main;
+                var split = decoded.LastIndexOf('@');
+                if (split < 0) return null;
+                methodPassword = decoded[..split];
+                hostPort = decoded[(split + 1)..];
+            }
+            var sep = methodPassword.IndexOf(':');
+            if (sep < 1 || !Uri.TryCreate("ss://" + hostPort, UriKind.Absolute, out var uri)) return null;
+            return new ProxyProfile
+            {
+                Name = name, Protocol = "shadowsocks", Server = uri.Host,
+                Port = uri.IsDefaultPort ? 8388 : uri.Port,
+                Method = methodPassword[..sep],
+                Password = Uri.UnescapeDataString(methodPassword[(sep + 1)..])
+            };
+        }
+        catch { return null; }
+    }
+
+    private static string? TryBase64(string value)
+    {
+        var candidate = value.Trim().Replace('-', '+').Replace('_', '/');
+        candidate = candidate.PadRight(candidate.Length + ((4 - candidate.Length % 4) % 4), '=');
+        try { return Encoding.UTF8.GetString(Convert.FromBase64String(candidate)); }
+        catch { return null; }
+    }
+
+    private static string DecodeName(string fragment) =>
+        string.IsNullOrWhiteSpace(fragment) ? "سرور جدید" : Uri.UnescapeDataString(fragment.TrimStart('#'));
+
+    private static int DefaultPort(string scheme) => scheme switch
+    {
+        "socks" or "socks5" => 1080,
+        "http" => 8080,
+        "ss" => 8388,
+        "hysteria2" or "hy2" or "tuic" => 443,
+        _ => 443
+    };
+}
