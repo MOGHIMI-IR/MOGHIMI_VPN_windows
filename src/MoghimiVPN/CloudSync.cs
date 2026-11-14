@@ -14,7 +14,16 @@ public sealed class CloudSync
     private const int MaxAggregateBytes = 16 * 1024 * 1024;
     private const int MaxEntries = 2000;
     private const int MaxProfiles = 2000;
-    private static readonly HttpClient SharedClient = new() { Timeout = TimeSpan.FromSeconds(18) };
+    private static readonly HttpClient SharedClient = new(
+        new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            ConnectTimeout = TimeSpan.FromSeconds(8),
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+        })
+    {
+        Timeout = TimeSpan.FromSeconds(18)
+    };
     private readonly HttpClient _client;
 
     public CloudSync(HttpClient? client = null) =>
@@ -36,6 +45,7 @@ public sealed class CloudSync
         request.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
         using var response = await _client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
+        EnsureProjectResponse(response);
         var json = await ReadBoundedTextAsync(response.Content, MaxResponseBytes, cancellationToken);
         var entries = JsonSerializer.Deserialize<List<Entry>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
         if (entries.Count > MaxEntries)
@@ -74,6 +84,17 @@ public sealed class CloudSync
     }
 
 
+
+    private static void EnsureProjectResponse(HttpResponseMessage response)
+    {
+        var project = new Uri(ProjectUrl + "/");
+        var finalUri = response.RequestMessage?.RequestUri;
+        if (finalUri is null ||
+            finalUri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(finalUri.Host, project.Host, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Endpoint ابری به میزبان دیگری هدایت شد؛ برای جلوگیری از افشای Header درخواست رد شد.");
+    }
+
     private static async Task<string> ReadBoundedTextAsync(
         HttpContent content,
         int maxBytes,
@@ -110,6 +131,7 @@ public sealed class CloudSync
         signRequest.Content = new StringContent("{\"expiresIn\":600}", System.Text.Encoding.UTF8, "application/json");
         using var signResponse = await _client.SendAsync(signRequest, cancellationToken);
         signResponse.EnsureSuccessStatusCode();
+        EnsureProjectResponse(signResponse);
         using var doc = JsonDocument.Parse(await ReadBoundedTextAsync(signResponse.Content, 64 * 1024, cancellationToken));
         if (!doc.RootElement.TryGetProperty("signedURL", out var signed) || string.IsNullOrWhiteSpace(signed.GetString()))
             throw new InvalidOperationException("ساخت لینک موقت دریافت فایل کانفیگ ناموفق بود.");
