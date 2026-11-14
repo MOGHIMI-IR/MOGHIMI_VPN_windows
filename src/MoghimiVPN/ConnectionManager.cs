@@ -86,7 +86,16 @@ public sealed class ConnectionManager : IDisposable
                 _systemProxyPort = proxyPort;
                 SystemProxyController.Enable(port: proxyPort);
                 _systemProxyEnabled = true;
+                if (_process.HasExited)
+                {
+                    SystemProxyController.Restore();
+                    _systemProxyEnabled = false;
+                    throw new InvalidOperationException("هسته sing-box بلافاصله پس از فعال‌سازی پراکسی متوقف شد؛ تنظیمات قبلی ویندوز بازگردانده شد.");
+                }
             }
+
+            if (_process.HasExited)
+                throw new InvalidOperationException("هسته VPN پیش از تکمیل راه‌اندازی متوقف شد.");
 
             LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
         }
