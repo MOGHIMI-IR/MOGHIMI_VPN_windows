@@ -17,6 +17,8 @@ public sealed class ConnectionManager : IDisposable
         if (IsRunning) throw new InvalidOperationException("VPN از قبل در حال اجراست.");
         if (!File.Exists(_enginePath))
             throw new FileNotFoundException("هسته sing-box پیدا نشد. بسته نصب را کامل نصب یا دوباره دریافت کن.", _enginePath);
+        if (settings.ConnectionMode == "TUN" && !File.Exists(Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe")))
+            throw new FileNotFoundException("راه‌انداز امن تونل پیدا نشد. بسته نصب را کامل نصب کن.");
         if (settings.ConnectionMode == "TUN" && !File.Exists(Path.Combine(AppContext.BaseDirectory, "runtime", "wintun.dll")))
             throw new FileNotFoundException("فایل رسمی Wintun کنار هسته پیدا نشد.");
 
@@ -26,21 +28,19 @@ public sealed class ConnectionManager : IDisposable
         await File.WriteAllTextAsync(configPath, json, cancellationToken);
         await ValidateConfigAsync(configPath, cancellationToken);
 
+        var tunnelMode = settings.ConnectionMode == "TUN";
+        var hostPath = Path.Combine(AppContext.BaseDirectory, "MoghimiVPN.TunnelHost.exe");
         var startInfo = new ProcessStartInfo {
-            FileName = _enginePath,
-            Arguments = $"run -c \"{configPath}\"",
+            FileName = tunnelMode ? hostPath : _enginePath,
+            Arguments = tunnelMode
+                ? $"\"{_enginePath}\" \"{configPath}\""
+                : $"run -c \"{configPath}\"",
             WorkingDirectory = Path.GetDirectoryName(_enginePath)!,
-            CreateNoWindow = true,
-            UseShellExecute = settings.ConnectionMode == "TUN"
+            CreateNoWindow = !tunnelMode,
+            UseShellExecute = tunnelMode,
+            WindowStyle = ProcessWindowStyle.Hidden
         };
-        if (settings.ConnectionMode == "TUN")
-        {
-            startInfo.Verb = "runas";
-        }
-        else
-        {
-            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-        }
+        if (tunnelMode) startInfo.Verb = "runas";
 
         try
         {

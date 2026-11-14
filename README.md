@@ -16,7 +16,7 @@ A native Windows desktop client for Moghimi VPN. This repository is independent 
 - No antivirus disabling, exclusions, process hiding, obfuscation, persistence tricks or security bypasses.
 - No analytics, ads, tracking SDK, account login, Windows credentials or browser data access.
 - No service-role / Supabase secret key in the client. Only the project's public publishable key is used; access is controlled by RLS.
-- TUN mode asks Windows for elevation at connect time. The engine is launched visibly with a normal UAC prompt; cancelling UAC cancels the connection.
+- TUN mode asks Windows for elevation at connect time through a dedicated Moghimi tunnel host; the desktop UI remains a standard user process. Cancelling UAC cancels the connection.
 - System Proxy is a separate, user-level option. It saves and restores the previous settings.
 - The app does not auto-connect at launch.
 - Wintun is obtained from the official WireGuard/Wintun distribution and verified against its published SHA-256 before packaging. sing-box is downloaded from its official release and verified before packaging.
