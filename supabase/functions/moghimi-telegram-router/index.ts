@@ -599,13 +599,26 @@ async function processUpdate(update: any) {
 }
 Deno.serve(async (request: Request) => {
   if (request.method === "GET" || request.method === "HEAD") {
-    const ready = Boolean(WIN_URL && WIN_KEY && BOT_TOKEN && BOT_SECRET && MOBILE_WEBHOOK_SECRET && CARD && ENV_ADMINS.size > 0);
+    let databaseAdminsConfigured = false;
+    if (WIN_URL && WIN_KEY && ENV_ADMINS.size === 0) {
+      try {
+        const rows = await db("windows_telegram_admins?enabled=eq.true&select=telegram_user_id&limit=1");
+        databaseAdminsConfigured = Array.isArray(rows) && rows.length > 0;
+      } catch (error) {
+        console.error("windows_admin_health_check_failed", error instanceof Error ? error.message : "failed");
+      }
+    }
+    const adminsConfigured = ENV_ADMINS.size > 0 || databaseAdminsConfigured;
+    const ready = Boolean(WIN_URL && WIN_KEY && BOT_TOKEN && BOT_SECRET &&
+      MOBILE_WEBHOOK_SECRET && CARD && adminsConfigured);
     const response = json({
       ok: ready,
       service: "moghimi-telegram-router",
       windows_database: Boolean(WIN_URL && WIN_KEY),
       telegram_configured: Boolean(BOT_TOKEN && BOT_SECRET),
-      mobile_forward_configured: Boolean(MOBILE_WEBHOOK_SECRET), payment_configured: Boolean(CARD), admins_configured: ENV_ADMINS.size > 0
+      mobile_forward_configured: Boolean(MOBILE_WEBHOOK_SECRET),
+      payment_configured: Boolean(CARD),
+      admins_configured: adminsConfigured
     }, ready ? 200 : 503);
     return request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response;
   }
