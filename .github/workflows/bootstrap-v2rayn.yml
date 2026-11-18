@@ -55,6 +55,10 @@ jobs:
             ForEach-Object {
               Copy-Item $_.FullName -Destination $PWD -Recurse -Force
             }
+          # GlobalHotKeys is a submodule upstream; vendor its tracked source in this fork.
+          Get-ChildItem -Path $PWD -Recurse -Force -Filter ".git" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -ne (Join-Path $PWD ".git") } |
+            ForEach-Object { Remove-Item $_.FullName -Force -Recurse }
           New-Item -ItemType Directory -Force ".github/workflows" | Out-Null
           Copy-Item $env:BOOTSTRAP_FILE ".github/workflows/bootstrap-v2rayn.yml" -Force
 
@@ -93,7 +97,12 @@ jobs:
       - name: Run upstream service tests
         shell: pwsh
         run: |
-          dotnet test "./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj" -c Release -p:EnableWindowsTargeting=true --no-restore
+          if (!(Test-Path "./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj")) {
+            throw "The upstream ServiceLib test project is missing from the imported source."
+          }
+          dotnet restore "./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj" -p:EnableWindowsTargeting=true
+          if ($LASTEXITCODE -ne 0) { throw "v2rayN ServiceLib test restore failed." }
+          dotnet test --project "./v2rayN/ServiceLib.Tests" -c Release -p:EnableWindowsTargeting=true --results-directory "./TestResults"
           if ($LASTEXITCODE -ne 0) { throw "v2rayN ServiceLib unit tests failed." }
 
       - name: Upload upstream WPF build artifact
