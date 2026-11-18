@@ -1,4 +1,5 @@
 using v2rayN.Manager;
+using v2rayN.Services;
 using v2rayN.Views;
 
 namespace v2rayN;
@@ -45,6 +46,15 @@ public partial class App
 
         AppManager.Instance.InitComponents();
 
+        var moghimiDevice = MoghimiDeviceService.Instance;
+        AppEvents.MoghimiConnectionAuthorizationRequested = token =>
+            moghimiDevice.EnsureAccessAsync(token, forceRefresh: true);
+        moghimiDevice.AccessBlocked += message =>
+            AppEvents.MoghimiAccessBlockedRequested.Publish(message);
+        moghimiDevice.Start();
+        AppEvents.AppExitRequested.AsObservable()
+            .SubscribeAsync(async _ => await moghimiDevice.ShutdownAsync());
+
         RxAppBuilder.CreateReactiveUIBuilder()
             .WithWpf()
             .BuildApp();
@@ -82,6 +92,15 @@ public partial class App
     protected override void OnExit(ExitEventArgs e)
     {
         Logging.SaveLog("OnExit");
+        try
+        {
+            MoghimiDeviceService.Instance.ShutdownAsync().GetAwaiter().GetResult();
+            MoghimiDeviceService.Instance.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("MoghimiDeviceShutdown", ex);
+        }
         base.OnExit(e);
         Process.GetCurrentProcess().Kill();
     }

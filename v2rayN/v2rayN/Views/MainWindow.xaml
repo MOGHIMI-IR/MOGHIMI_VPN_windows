@@ -10,10 +10,10 @@
     xmlns:resx="clr-namespace:ServiceLib.Resx;assembly=ServiceLib"
     xmlns:view="clr-namespace:v2rayN.Views"
     xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
-    Title="v2rayN"
-    Width="1200"
-    Height="800"
-    MinWidth="800"
+    Title="Moghimi VPN  |  Secure Network"
+    Width="1460"
+    Height="920"
+    MinWidth="1080"
     x:TypeArguments="vms:MainWindowViewModel"
     Icon="/Resources/v2rayN.ico"
     ResizeMode="CanResizeWithGrip"
@@ -331,6 +331,232 @@
                             Visibility="Hidden" />
                     </ToolBar>
                 </ToolBarTray>
+
+                <Border DockPanel.Dock="Top"
+                        Margin="16,10,16,12"
+                        Padding="17,14"
+                        CornerRadius="23"
+                        Background="{StaticResource MoghimiHeroBrush}"
+                        BorderBrush="#6D8A83B9"
+                        BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="26" ShadowDepth="5" Opacity="0.28" Color="#070914" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.08*" />
+                            <ColumnDefinition Width="1.35*" />
+                            <ColumnDefinition Width="1.05*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,12,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="58" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="52" Height="52" VerticalAlignment="Center">
+                                <Ellipse Stroke="#7E66D6" StrokeThickness="2" Opacity="0.9" />
+                                <Ellipse x:Name="MoghimiOrbit"
+                                         Margin="3"
+                                         Stroke="#E9C77C"
+                                         StrokeThickness="1.4"
+                                         StrokeDashArray="2 4"
+                                         RenderTransformOrigin="0.5,0.5">
+                                    <Ellipse.RenderTransform>
+                                        <RotateTransform x:Name="MoghimiOrbitRotation" />
+                                    </Ellipse.RenderTransform>
+                                </Ellipse>
+                                <Ellipse x:Name="MoghimiGlow"
+                                         Margin="9"
+                                         Fill="#5F8C70DE"
+                                         Stroke="#A98BFF"
+                                         StrokeThickness="1.3"
+                                         Opacity="0.85" />
+                                <TextBlock Text="M"
+                                           Foreground="#FFFFFF"
+                                           FontSize="21"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <TextBlock Text="MOGHIMI VPN"
+                                           Foreground="{StaticResource MoghimiTextBrush}"
+                                           FontSize="19"
+                                           FontWeight="Bold" />
+                                <TextBlock Text="SECURE NETWORK  /  POWERED BY V2RAYN"
+                                           Foreground="#C8C0E2"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Margin="0,3,0,0" />
+                                <TextBlock x:Name="MoghimiConnectionStateText"
+                                           Text="در حال بررسی وضعیت دستگاه…"
+                                           Foreground="#D8D3E9"
+                                           FontSize="12"
+                                           Margin="0,5,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Grid.Row="0" Grid.Column="1"
+                                Style="{StaticResource MoghimiGlassCard}"
+                                Margin="0,0,12,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="8" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <TextBlock Text="سهمیه مستقل ویندوز"
+                                               Foreground="#E8E2F5"
+                                               FontSize="13"
+                                               FontWeight="SemiBold" />
+                                    <Border HorizontalAlignment="Left"
+                                            Background="#493F967B"
+                                            BorderBrush="#7B7CE1B7"
+                                            BorderThickness="1"
+                                            CornerRadius="9"
+                                            Padding="8,2">
+                                        <TextBlock Text="8 GiB / MONTH"
+                                                   Foreground="#B7F0D8"
+                                                   FontSize="10"
+                                                   FontWeight="Bold" />
+                                    </Border>
+                                </Grid>
+                                <Grid Grid.Row="1" Margin="0,7,0,7">
+                                    <TextBlock x:Name="MoghimiQuotaSummaryText"
+                                               Text="در حال دریافت سهمیه…"
+                                               Foreground="#FFFFFF"
+                                               FontSize="15"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock x:Name="MoghimiPaidQuotaSummaryText"
+                                               Text="حجم خریداری‌شده: —"
+                                               HorizontalAlignment="Left"
+                                               Foreground="#EBCB83"
+                                               FontSize="11"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <ProgressBar x:Name="MoghimiFreeQuotaProgress"
+                                             Grid.Row="2"
+                                             Height="8"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Value="0"
+                                             Background="#3B324F"
+                                             Foreground="#75D7B5"
+                                             BorderThickness="0" />
+                                <Grid Grid.Row="3" Margin="0,6,0,0">
+                                    <TextBlock x:Name="MoghimiQuotaMonthText"
+                                               Text="بازنشانی ماهانه بر اساس UTC"
+                                               Foreground="#B8B1CC"
+                                               FontSize="10" />
+                                    <TextBlock x:Name="MoghimiDeviceIdText"
+                                               Text="DEVICE  /  —"
+                                               Foreground="#C5BEDE"
+                                               FontSize="10"
+                                               HorizontalAlignment="Left" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="0" Grid.Column="2"
+                                Style="{StaticResource MoghimiGlassCard}"
+                                Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="LIVE TRAFFIC  /  SESSION"
+                                           Foreground="#D4CAE9"
+                                           FontSize="10"
+                                           FontWeight="Bold" />
+                                <Grid Grid.Row="1" Margin="0,7,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="دریافت"
+                                                   Foreground="#8EE6C8"
+                                                   FontSize="10" />
+                                        <TextBlock x:Name="MoghimiTrafficDownText"
+                                                   Text="0 B"
+                                                   Foreground="#FFFFFF"
+                                                   FontSize="17"
+                                                   FontWeight="SemiBold" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Left">
+                                        <TextBlock Text="ارسال"
+                                                   Foreground="#EBCB83"
+                                                   FontSize="10" />
+                                        <TextBlock x:Name="MoghimiTrafficUpText"
+                                                   Text="0 B"
+                                                   Foreground="#FFFFFF"
+                                                   FontSize="17"
+                                                   FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1" Grid.ColumnSpan="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.08*" />
+                                <ColumnDefinition Width="1.35*" />
+                                <ColumnDefinition Width="1.05*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="MoghimiConnectButton"
+                                        Content="اتصال امن"
+                                        Style="{StaticResource MoghimiActionButton}"
+                                        MinWidth="126"
+                                        Click="MoghimiConnectButton_Click" />
+                                <TextBlock Text="SYSTEM PROXY"
+                                           Foreground="#BDB5D5"
+                                           FontSize="9"
+                                           VerticalAlignment="Center"
+                                           Margin="10,0,0,0" />
+                            </StackPanel>
+                            <Grid Grid.Column="1" Margin="0,0,12,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="MoghimiActivationCodeInput"
+                                         Height="38"
+                                         VerticalContentAlignment="Center"
+                                         Padding="10,5"
+                                         Background="#3C12192F"
+                                         Foreground="#FFFFFF"
+                                         BorderBrush="#6A8B81B6"
+                                         BorderThickness="1"
+                                         FontSize="12"
+                                         ToolTip="کد فعال‌سازی ۳۲ کاراکتری" />
+                                <Button Grid.Column="1"
+                                        x:Name="MoghimiActivateButton"
+                                        Content="فعال‌سازی"
+                                        Style="{StaticResource MoghimiActionButton}"
+                                        Margin="8,0,0,0"
+                                        MinWidth="90"
+                                        Click="MoghimiActivateButton_Click" />
+                            </Grid>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button x:Name="MoghimiSyncButton"
+                                        Content="همگام‌سازی سرورها"
+                                        Style="{StaticResource MoghimiActionButton}"
+                                        MinWidth="154"
+                                        Click="MoghimiSyncButton_Click" />
+                                <TextBlock Text="CLOUD"
+                                           Foreground="#BDB5D5"
+                                           FontSize="9"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
 
                 <ContentControl x:Name="contentStatusBarView" DockPanel.Dock="Bottom" />
 

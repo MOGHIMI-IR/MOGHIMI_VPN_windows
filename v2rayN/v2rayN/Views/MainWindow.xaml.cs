@@ -3,6 +3,7 @@ using System.Windows.Media;
 using MaterialDesignThemes.Wpf;
 using v2rayN.Base;
 using v2rayN.Manager;
+using v2rayN.Services;
 
 namespace v2rayN.Views;
 
@@ -12,6 +13,7 @@ public partial class MainWindow
     private readonly SingleReplaceableDisposable _layoutBindingsDisposable = new();
     private CheckUpdateView? _checkUpdateView;
     private BackupAndRestoreView? _backupAndRestoreView;
+    private readonly MoghimiDeviceService _moghimi = MoghimiDeviceService.Instance;
 
     public MainWindow()
     {
@@ -19,6 +21,11 @@ public partial class MainWindow
 
         _config = AppManager.Instance.Config;
         ThreadPool.RegisterWaitForSingleObject(App.ProgramStarted, OnProgramStarted, null, -1, false);
+
+        _moghimi.StatusChanged += MoghimiStatusChanged;
+        _moghimi.TrafficChanged += MoghimiTrafficChanged;
+        _moghimi.AccessBlocked += MoghimiAccessBlocked;
+        StartMoghimiMotion();
 
         App.Current.SessionEnding += Current_SessionEnding;
         Closing += MainWindow_Closing;
@@ -189,6 +196,217 @@ public partial class MainWindow
                 AppEvents.SysProxyChangeRequested.Publish((ESysProxyType)((int)e - 1));
                 break;
         }
+    }
+
+    private void StartMoghimiMotion()
+    {
+        MoghimiOrbitRotation.BeginAnimation(
+            System.Windows.Media.RotateTransform.AngleProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(16))
+            {
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+            });
+        MoghimiGlow.BeginAnimation(
+            UIElement.OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0.48, 0.9, TimeSpan.FromSeconds(2.4))
+            {
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase
+                {
+                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut
+                }
+            });
+        _ = RefreshMoghimiStatusAsync();
+    }
+
+    private async Task RefreshMoghimiStatusAsync()
+    {
+        try
+        {
+            var status = await _moghimi.GetStatusAsync(forceRefresh: true);
+            MoghimiStatusChanged(status);
+            SetMoghimiVisualState(
+                ViewModel.StatusBarViewModel.SystemProxySelected == (int)ESysProxyType.ForcedChange ||
+                ViewModel.StatusBarViewModel.EnableTun);
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                MoghimiConnectionStateText.Text = "سرویس سهمیه در دسترس نیست";
+                AppendMoghimiUiLog(ex.Message);
+            }));
+        }
+    }
+
+    private void MoghimiStatusChanged(MoghimiQuotaStatus status)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var freeLimit = Math.Max(1, status.FreeLimitBytes);
+            var remaining = Math.Clamp(status.FreeRemainingBytes, 0, freeLimit);
+            var used = Math.Max(0, status.FreeUsedBytes);
+            MoghimiFreeQuotaProgress.Value = Math.Clamp(100d * used / freeLimit, 0d, 100d);
+            MoghimiQuotaSummaryText.Text =
+                $"{FormatMoghimiBytes(remaining)} از {FormatMoghimiBytes(freeLimit)} باقی‌مانده";
+            MoghimiPaidQuotaSummaryText.Text = status.PaidRemainingBytes > 0
+                ? $"حجم اشتراک: {FormatMoghimiBytes(status.PaidRemainingBytes)} باقی‌مانده"
+                : "حجم خریداری‌شده: فعال نیست";
+            MoghimiQuotaMonthText.Text = string.IsNullOrWhiteSpace(status.FreeMonthStart)
+                ? "بازنشانی ماهانه بر اساس UTC"
+                : $"شروع دوره UTC: {status.FreeMonthStart}";
+            MoghimiDeviceIdText.Text = $"DEVICE  /  {_moghimi.DeviceDisplayId}";
+            if (!status.AccessAllowed)
+                MoghimiConnectionStateText.Text = "سهمیه قابل استفاده تمام شده";
+            else if (status.PaidRemainingBytes > 0 && status.FreeRemainingBytes <= 0)
+                MoghimiConnectionStateText.Text = "اشتراک خریداری‌شده فعال است";
+            else
+                MoghimiConnectionStateText.Text = "سهمیه رایگان ویندوز فعال است";
+        }));
+    }
+
+    private void MoghimiTrafficChanged(long downloadBytes, long uploadBytes)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            MoghimiTrafficDownText.Text = FormatMoghimiBytes(downloadBytes);
+            MoghimiTrafficUpText.Text = FormatMoghimiBytes(uploadBytes);
+        }));
+    }
+
+    private void MoghimiAccessBlocked(string message)
+    {
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            try
+            {
+                ViewModel.StatusBarViewModel.SystemProxySelected = (int)ESysProxyType.ForcedClear;
+                ViewModel.StatusBarViewModel.EnableTun = false;
+                await CoreManager.Instance.CoreStop();
+                SetMoghimiVisualState(false);
+                MoghimiConnectionStateText.Text = "اتصال متوقف شد · سهمیه کافی نیست";
+                MessageBox.Show(message, "وضعیت سهمیه مقیمی", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                AppendMoghimiUiLog(ex.Message);
+            }
+        }));
+    }
+
+    private async void MoghimiSyncButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoghimiSyncButton.IsEnabled = false;
+        try
+        {
+            if (!await _moghimi.EnsureAccessAsync(CancellationToken.None, forceRefresh: true))
+                throw new InvalidOperationException("سهمیه یا اشتراک این دستگاه اجازه همگام‌سازی نمی‌دهد.");
+
+            var count = await _moghimi.SyncCatalogAsync();
+            await ViewModel.ProfilesViewModel.RefreshSubscriptions();
+            var cloudGroup = ViewModel.ProfilesViewModel.SubItems
+                .FirstOrDefault(item => item.Id == MoghimiDeviceService.SubscriptionId);
+            if (cloudGroup is not null)
+            {
+                ViewModel.ProfilesViewModel.SelectedSub = cloudGroup;
+                await ViewModel.ProfilesViewModel.RefreshServers();
+            }
+
+            MoghimiConnectionStateText.Text = $"همگام‌سازی تکمیل شد · {count} سرور";
+            MessageBox.Show($"{count} کانفیگ از فهرست سرورهای مقیمی دریافت و به v2rayN اضافه شد.",
+                "همگام‌سازی موفق", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MoghimiConnectionStateText.Text = "همگام‌سازی ناموفق بود";
+            MessageBox.Show(ex.Message, "خطا در همگام‌سازی", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            MoghimiSyncButton.IsEnabled = true;
+        }
+    }
+
+    private async void MoghimiActivateButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoghimiActivateButton.IsEnabled = false;
+        try
+        {
+            await _moghimi.ActivateSubscriptionAsync(MoghimiActivationCodeInput.Text);
+            MoghimiActivationCodeInput.Clear();
+            await RefreshMoghimiStatusAsync();
+            MessageBox.Show("کد فعال‌سازی برای همین دستگاه ثبت شد.", "فعال‌سازی موفق",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "فعال‌سازی ناموفق بود", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            MoghimiActivateButton.IsEnabled = true;
+        }
+    }
+
+    private async void MoghimiConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var statusBar = ViewModel.StatusBarViewModel;
+            var currentlyConnected =
+                statusBar.SystemProxySelected == (int)ESysProxyType.ForcedChange || statusBar.EnableTun;
+
+            if (currentlyConnected)
+            {
+                statusBar.SystemProxySelected = (int)ESysProxyType.ForcedClear;
+                statusBar.EnableTun = false;
+                SetMoghimiVisualState(false);
+                return;
+            }
+
+            if (!await _moghimi.EnsureAccessAsync(CancellationToken.None, forceRefresh: true))
+                throw new InvalidOperationException("سهمیه ۸ گیگابایتی و حجم اشتراک خریداری‌شده تمام شده است.");
+
+            statusBar.SystemProxySelected = (int)ESysProxyType.ForcedChange;
+            SetMoghimiVisualState(true);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "اتصال مقیمی برقرار نشد", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void SetMoghimiVisualState(bool connected)
+    {
+        MoghimiConnectButton.Content = connected ? "قطع اتصال" : "اتصال امن";
+        MoghimiConnectionStateText.Text = connected
+            ? "تونل فعال است · ترافیک تحت محاسبه"
+            : "آماده اتصال امن";
+        var duration = connected ? TimeSpan.FromSeconds(4.5) : TimeSpan.FromSeconds(16);
+        MoghimiOrbitRotation.BeginAnimation(
+            System.Windows.Media.RotateTransform.AngleProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 360, duration)
+            {
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+            });
+    }
+
+    private static string FormatMoghimiBytes(long bytes)
+    {
+        var value = Math.Max(0, bytes);
+        const double kib = 1024d;
+        const double mib = 1024d * 1024d;
+        const double gib = 1024d * 1024d * 1024d;
+        return value >= gib ? $"{value / gib:0.00} GiB"
+            : value >= mib ? $"{value / mib:0.0} MiB"
+            : value >= kib ? $"{value / kib:0} KiB"
+            : $"{value} B";
+    }
+
+    private void AppendMoghimiUiLog(string message)
+    {
+        Logging.SaveLog("MoghimiDashboard", new InvalidOperationException(message));
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)

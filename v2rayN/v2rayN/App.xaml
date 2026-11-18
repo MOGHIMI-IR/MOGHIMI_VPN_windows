@@ -9,12 +9,43 @@
         <ResourceDictionary xmlns:system="clr-namespace:System;assembly=mscorlib">
             <ResourceDictionary.MergedDictionaries>
                 <materialDesign:BundledTheme
-                    BaseTheme="Light"
-                    PrimaryColor="Blue"
-                    SecondaryColor="Lime" />
+                    BaseTheme="Dark"
+                    PrimaryColor="DeepPurple"
+                    SecondaryColor="Amber" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <system:Double x:Key="MenuItemHeight">32</system:Double>
+            <system:Double x:Key="MenuItemHeight">34</system:Double>
+            <SolidColorBrush x:Key="MoghimiTextBrush" Color="#F6F2FF" />
+            <SolidColorBrush x:Key="MoghimiMutedBrush" Color="#B9B3D0" />
+            <SolidColorBrush x:Key="MoghimiVioletBrush" Color="#A98BFF" />
+            <SolidColorBrush x:Key="MoghimiGoldBrush" Color="#EBCB83" />
+            <LinearGradientBrush x:Key="MoghimiHeroBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#F0141C36" Offset="0" />
+                <GradientStop Color="#E51E2147" Offset="0.48" />
+                <GradientStop Color="#ED342B4D" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MoghimiGlassBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#B52D3153" Offset="0" />
+                <GradientStop Color="#A91B2039" Offset="1" />
+            </LinearGradientBrush>
+            <Style x:Key="MoghimiGlassCard" TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="{StaticResource MoghimiGlassBrush}" />
+                <Setter Property="BorderBrush" Value="#587F82B7" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="Padding" Value="14,10" />
+            </Style>
+            <Style x:Key="MoghimiActionButton" TargetType="{x:Type Button}">
+                <Setter Property="Background" Value="#6B765AC7" />
+                <Setter Property="Foreground" Value="#FFF9FF" />
+                <Setter Property="BorderBrush" Value="#9C91CBFF" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="16,9" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="MinHeight" Value="38" />
+            </Style>
             <system:Double x:Key="StdFontSize">12</system:Double>
             <system:Double x:Key="StdFontSize1">13</system:Double>
             <system:Double x:Key="StdFontSize-1">11</system:Double>
