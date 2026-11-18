@@ -278,36 +278,51 @@ jobs:
           Write-Host "Installer install, startup and uninstall smoke tests passed."
 
       # This deploys the built installer to the Windows Supabase release bucket when the Actions secret is set.
-      - name: Publish Installer to Windows Supabase (optional)
+      - name: Publish Windows Beta Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-v1.0.1-beta.1
+          target_commitish: main
+          name: Moghimi VPN for Windows 1.0.1 Beta 1
+          prerelease: true
+          generate_release_notes: true
+          overwrite_files: true
+          files: artifacts/MoghimiVPN-Setup-x64.exe
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/MoghimiVPN-Setup-x64.exe
+
+      - name: Register Windows Release in Supabase
         shell: pwsh
         env:
           WINDOWS_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.WINDOWS_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           $ErrorActionPreference = "Stop"
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY)) {
-            Write-Host "WINDOWS_SUPABASE_SERVICE_ROLE_KEY is not configured; skipping Windows Supabase upload."
-            exit 0
+            throw "WINDOWS_SUPABASE_SERVICE_ROLE_KEY is required to register Windows updates."
           }
           $base = "https://hxfnoaeyjnkecegpppcy.supabase.co"
-          $installer = (Resolve-Path "artifacts\MoghimiVPN-Setup-x64.exe").Path
+          $installer = (Resolve-Path "artifacts\\MoghimiVPN-Setup-x64.exe").Path
           $version = if ("$env:GITHUB_REF" -match "^refs/tags/v") { "$env:GITHUB_REF".Split("/")[-1].TrimStart("v") } else { "1.0.1-beta.1" }
-          $match = [regex]::Match($version, "^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)")
+          $match = [regex]::Match($version, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)")
           if (-not $match.Success) { throw "Version '$version' is not a valid semver release." }
           $versionCode = ([int64]$match.Groups["major"].Value * 1000000) + ([int64]$match.Groups["minor"].Value * 1000) + [int64]$match.Groups["patch"].Value
           $channel = if ($version -match "(?i)(beta|alpha|rc)") { "beta" } else { "stable" }
-          $fileName = "MoghimiVPN-Windows-$version-x64-Setup.exe"
+          $releaseTag = if ("$env:GITHUB_REF" -match "^refs/tags/") { "$env:GITHUB_REF".Split("/")[-1] } else { "windows-v1.0.1-beta.1" }
+          $installerUrl = "https://github.com/MOGHIMI-IR/MOGHIMI_VPN_windows/releases/download/$releaseTag/MoghimiVPN-Setup-x64.exe"
           $sha = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
           $size = (Get-Item $installer).Length
-          $headers = @{ apikey = $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY; Authorization = "Bearer $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY"; "x-upsert" = "true" }
-          $encodedName = [uri]::EscapeDataString($fileName)
-          $uploadUri = "$base/storage/v1/object/windows-releases/$encodedName"
-          Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/octet-stream" -InFile $installer | Out-Null
           $payload = @{
             version_name = $version
             version_code = $versionCode
             architecture = "x64"
             release_channel = $channel
-            installer_url = "$base/storage/v1/object/public/windows-releases/$encodedName"
+            installer_url = $installerUrl
             sha256 = $sha
             file_size = $size
             release_notes = "Moghimi VPN for Windows $version"
@@ -318,8 +333,7 @@ jobs:
           } | ConvertTo-Json -Depth 8
           $dbHeaders = @{ apikey = $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY; Authorization = "Bearer $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY"; Prefer = "resolution=merge-duplicates,return=representation" }
           Invoke-RestMethod -Method Post -Uri "$base/rest/v1/windows_app_releases?on_conflict=version_code" -Headers $dbHeaders -ContentType "application/json" -Body $payload | Out-Null
-          Write-Host "Windows installer uploaded and registered: $fileName (SHA256: $sha)"
-
+          Write-Host "Windows installer release metadata registered: $version ($sha)"
       - name: Upload Windows Setup only
         uses: actions/upload-artifact@v4
         with:
@@ -340,9 +354,3 @@ jobs:
           overwrite_files: true
           files: artifacts/MoghimiVPN-Setup-x64.exe
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: artifacts/MoghimiVPN-Setup-x64.exe
