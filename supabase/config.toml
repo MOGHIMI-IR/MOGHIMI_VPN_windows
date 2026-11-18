@@ -1,0 +1,7 @@
+project_id = "hxfnoaeyjnkecegpppcy"
+
+[functions.windows-api]
+verify_jwt = false
+
+[functions.moghimi-telegram-router]
+verify_jwt = false
