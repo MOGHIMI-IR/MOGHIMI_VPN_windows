@@ -257,9 +257,9 @@ public sealed class MoghimiDeviceService : IDisposable
         {
             if (entry.TryGetProperty("config_text", out var configElement))
             {
-                var config = configElement.GetString()?.Trim();
-                if (!string.IsNullOrWhiteSpace(config))
-                    configBlocks.Add(config);
+                var configEntry = configElement.GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(configEntry))
+                    configBlocks.Add(configEntry);
             }
         }
 
