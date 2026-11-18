@@ -581,7 +581,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(7))
                 {
                     RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
-                    EasingFunction = new System.Windows.Media.Animation.LinearEase()
                 });
         }
     }
@@ -1448,12 +1447,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
                 try
                 {
-                    if (string.Equals(profile.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
-                    {
-                        var license = await _license.GetStatusAsync(forceRefresh: true);
-                        if (!license.Active)
-                            throw new InvalidOperationException("اشتراک ویندوز فعال نیست یا حجم آن تمام شده است.");
-                    }
+                    var entitlement = await _license.GetStatusAsync(forceRefresh: true);
+                    if (!entitlement.Active)
+                        throw new InvalidOperationException("سهمیه رایگان و حجم خریداری‌شده ویندوز تمام شده است.");
 
                     await _connection.StartAsync(profile, settings);
                     if (!_connection.IsRunning)
@@ -1464,14 +1460,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     ProfilesList.SelectedItem = profile;
                     _connectedSince = DateTimeOffset.Now;
                     _isConnected = true;
-                    if (string.Equals(profile.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
-                    {
-                        _usageSessionId = Guid.NewGuid();
-                        _usageSequence = 0;
-                        _usageReportedDownloadBytes = 0;
-                        _usageReportedUploadBytes = 0;
-                        _usageTimer.Start();
-                    }
+                    _usageSessionId = Guid.NewGuid();
+                    _usageSequence = 0;
+                    _usageReportedDownloadBytes = 0;
+                    _usageReportedUploadBytes = 0;
+                    _usageTimer.Start();
                     _sessionTimer.Start();
                     UpdateSessionClock();
 
