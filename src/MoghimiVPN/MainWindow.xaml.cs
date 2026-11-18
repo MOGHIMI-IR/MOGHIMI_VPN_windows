@@ -1296,6 +1296,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ExpiresAt = report.ExpiresAt ?? cached.ExpiresAt,
                 Status = report.RemainingBytes <= 0 ? "exhausted" : "active"
             });
+
+            // A successful usage report may consume the last remaining bytes.
+            // Disconnect immediately instead of waiting for a second report/error.
+            if (report.RemainingBytes <= 0)
+            {
+                _usageTimer.Stop();
+                if (!_connectionBusy && _connection.IsRunning)
+                    await ForceDisconnectAfterQuotaAsync();
+            }
         }
         catch (Exception error)
         {
