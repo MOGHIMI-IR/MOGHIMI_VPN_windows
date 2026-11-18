@@ -179,7 +179,6 @@ jobs:
           $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
           & $isccPath "/DAppVersion=$version" "installer\MoghimiVPN.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed." }
-          Compress-Archive -Path "publish\*" -DestinationPath "artifacts\MoghimiVPN-Windows-x64-portable.zip" -Force
 
       - name: Sign installer (optional)
         shell: pwsh
@@ -198,7 +197,7 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 "artifacts\MoghimiVPN-Setup-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw "Installer signing failed." }
 
-      - name: Test portable package and per-user installer end-to-end
+      - name: Test installer end-to-end
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -220,18 +219,6 @@ jobs:
             Write-Host "$Label startup smoke test passed."
           }
 
-          $portableArchive = (Resolve-Path "artifacts\MoghimiVPN-Windows-x64-portable.zip").Path
-          $portableRoot = Join-Path $env:RUNNER_TEMP "MoghimiVPN-Portable-Smoke"
-          Expand-Archive -LiteralPath $portableArchive -DestinationPath $portableRoot -Force
-          $portableExe = Join-Path $portableRoot "MoghimiVPN.exe"
-          if (-not (Test-Path (Join-Path $portableRoot "tunnel-host\MoghimiVPN.TunnelHost.exe"))) {
-            throw "Portable archive is missing the isolated tunnel host."
-          }
-          if (-not (Test-Path (Join-Path $portableRoot "runtime\sing-box.exe"))) {
-            throw "Portable archive is missing sing-box runtime."
-          }
-          Test-AppLaunch $portableExe "Portable package"
-
           $setupExe = (Resolve-Path "artifacts\MoghimiVPN-Setup-x64.exe").Path
           $installRoot = Join-Path $env:RUNNER_TEMP "MoghimiVPN-Installed-Smoke"
           $setupArgs = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$installRoot")
@@ -239,9 +226,17 @@ jobs:
           if ($setupProcess.ExitCode -ne 0) {
             throw "Per-user installer failed with exit code $($setupProcess.ExitCode)."
           }
-          if (-not (Test-Path (Join-Path $installRoot "tunnel-host\MoghimiVPN.TunnelHost.exe"))) {
-            throw "Installed app is missing the tunnel host."
+
+          if (-not (Test-Path (Join-Path $installRoot "MoghimiVPN.exe"))) {
+            throw "Installer did not place MoghimiVPN.exe in the selected installation directory."
           }
+          if (-not (Test-Path (Join-Path $installRoot "tunnel-host\MoghimiVPN.TunnelHost.exe"))) {
+            throw "Installed app is missing the isolated tunnel host."
+          }
+          if (-not (Test-Path (Join-Path $installRoot "runtime\sing-box.exe"))) {
+            throw "Installed app is missing the sing-box runtime."
+          }
+
           Test-AppLaunch (Join-Path $installRoot "MoghimiVPN.exe") "Installed app"
 
           $uninstaller = Join-Path $installRoot "unins000.exe"
@@ -250,7 +245,7 @@ jobs:
           if ($uninstallProcess.ExitCode -ne 0) {
             throw "Silent uninstall failed with exit code $($uninstallProcess.ExitCode)."
           }
-          Write-Host "Per-user install and uninstall smoke test passed."
+          Write-Host "Installer install, startup and uninstall smoke tests passed."
 
       - name: Upload Windows Setup only
         uses: actions/upload-artifact@v4
@@ -260,17 +255,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload Windows Portable only
-        uses: actions/upload-artifact@v4
-        with:
-          name: MoghimiVPN-Windows-Portable-x64
-          path: artifacts/MoghimiVPN-Windows-x64-portable.zip
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/*
+          files: artifacts/MoghimiVPN-Setup-x64.exe
