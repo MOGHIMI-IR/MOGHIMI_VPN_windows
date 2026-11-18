@@ -2,6 +2,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.NetworkInformation;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace MoghimiVPN;
 
@@ -10,11 +13,20 @@ public sealed class ConnectionManager : IDisposable
     private Process? _process;
     private bool _systemProxyEnabled;
     private int _systemProxyPort = 2080;
+    private int _trafficApiPort;
+    private string? _trafficApiSecret;
+    private CancellationTokenSource? _trafficMonitorCts;
+    private Task? _trafficMonitorTask;
+    private long _uploadBytes;
+    private long _downloadBytes;
+    private static readonly HttpClient TrafficClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly string _enginePath = Path.Combine(AppContext.BaseDirectory, "runtime", "sing-box.exe");
     private readonly string _tunnelHostPath = Path.Combine(AppContext.BaseDirectory, "tunnel-host", "MoghimiVPN.TunnelHost.exe");
     public event EventHandler<string>? LogMessage;
     public event EventHandler? EngineExited;
     public bool IsRunning => _process is { HasExited: false };
+    public (long UploadBytes, long DownloadBytes) GetTrafficSnapshot() =>
+        (Interlocked.Read(ref _uploadBytes), Interlocked.Read(ref _downloadBytes));
 
     public async Task StartAsync(ProxyProfile profile, AppSettings settings, CancellationToken cancellationToken = default)
     {
@@ -31,6 +43,10 @@ public sealed class ConnectionManager : IDisposable
         var launched = false;
         var tunnelMode = settings.ConnectionMode == "TUN";
         var proxyPort = tunnelMode ? 2080 : ReserveLocalPort();
+        _trafficApiPort = ReserveLocalPort();
+        _trafficApiSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        Interlocked.Exchange(ref _uploadBytes, 0);
+        Interlocked.Exchange(ref _downloadBytes, 0);
 
         try
         {
@@ -38,7 +54,7 @@ public sealed class ConnectionManager : IDisposable
             if (tunnelMode && FindTunInterface() is not null)
                 throw new InvalidOperationException("رابط MoghimiVPN از اجرای قبلی هنوز در ویندوز دیده می‌شود. سیستم را یک‌بار Restart کن و دوباره تلاش کن.");
 
-            var json = SingBoxConfigBuilder.Build(profile, settings, logPath, proxyPort);
+            var json = SingBoxConfigBuilder.Build(profile, settings, logPath, proxyPort, _trafficApiPort, _trafficApiSecret);
             await File.WriteAllTextAsync(configPath, json, cancellationToken);
             await ValidateConfigAsync(configPath, cancellationToken);
 
@@ -77,6 +93,7 @@ public sealed class ConnectionManager : IDisposable
                     _process = null;
                     try { startedProcess.Dispose(); } catch { }
                 }
+                _trafficMonitorCts?.Cancel();
                 if (_systemProxyEnabled) SystemProxyController.Restore();
                 _systemProxyEnabled = false;
                 try { File.Delete(configPath); } catch { }
@@ -105,6 +122,10 @@ public sealed class ConnectionManager : IDisposable
             if (_process.HasExited)
                 throw new InvalidOperationException("هسته VPN پیش از تکمیل راه‌اندازی متوقف شد.");
 
+            _trafficMonitorCts?.Dispose();
+            _trafficMonitorCts = new CancellationTokenSource();
+            var monitorToken = _trafficMonitorCts.Token;
+            _trafficMonitorTask = Task.Run(() => MonitorTrafficAsync(monitorToken), monitorToken);
             LogMessage?.Invoke(this, $"هسته VPN اجرا شد: {profile.Name}");
         }
         catch
@@ -212,6 +233,17 @@ public sealed class ConnectionManager : IDisposable
 
     public async Task StopAsync()
     {
+        _trafficMonitorCts?.Cancel();
+        var trafficTask = _trafficMonitorTask;
+        _trafficMonitorTask = null;
+        _trafficMonitorCts?.Dispose();
+        _trafficMonitorCts = null;
+        if (trafficTask is not null)
+        {
+            try { await trafficTask.WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch { }
+        }
+
         var process = _process;
         _process = null;
         if (_systemProxyEnabled) SystemProxyController.Restore();
@@ -251,6 +283,58 @@ public sealed class ConnectionManager : IDisposable
             try { File.Delete(Path.Combine(ProfileStore.Instance.ConfigDirectory, "active.json")); } catch { }
         }
         LogMessage?.Invoke(this, "اتصال متوقف شد.");
+    }
+
+    private async Task MonitorTrafficAsync(CancellationToken cancellationToken)
+    {
+        if (_trafficApiPort is < 1 or > 65535 || string.IsNullOrWhiteSpace(_trafficApiSecret))
+            return;
+
+        var endpoint = new Uri($"http://127.0.0.1:{_trafficApiPort}/traffic");
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _trafficApiSecret);
+                using var response = await TrafficClient.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var reader = new StreamReader(stream);
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var line = await reader.ReadLineAsync(cancellationToken);
+                    if (line is null) break;
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    using var document = JsonDocument.Parse(line);
+                    var root = document.RootElement;
+                    var upload = root.TryGetProperty("up", out var up) && up.TryGetInt64(out var upValue)
+                        ? Math.Max(0, upValue) : 0;
+                    var download = root.TryGetProperty("down", out var down) && down.TryGetInt64(out var downValue)
+                        ? Math.Max(0, downValue) : 0;
+                    if (upload > 0) Interlocked.Add(ref _uploadBytes, upload);
+                    if (download > 0) Interlocked.Add(ref _downloadBytes, download);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception error)
+            {
+                LogMessage?.Invoke(this, "Traffic monitor retry: " + error.GetType().Name);
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                try { await Task.Delay(1000, cancellationToken); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
     }
 
     public static async Task<int> PingAsync(string host, int port, int timeoutMs = 2500)
