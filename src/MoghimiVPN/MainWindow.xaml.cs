@@ -1310,6 +1310,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (LicenseStatusText is null) return;
         if (!status.Active)
         {
+            if (SubscriptionSummaryText is not null)
+                SubscriptionSummaryText.Text = status.Status switch
+                {
+                    "not_activated" => "اشتراک فعال نشده است",
+                    "exhausted" => "حجم اشتراک تمام شده است",
+                    _ => "اشتراک فعال نیست یا نیاز به بررسی اتصال دارد"
+                };
+            if (SubscriptionUsageProgress is not null) SubscriptionUsageProgress.Value = 0;
             LicenseStatusText.Text = status.Status switch
             {
                 "not_activated" => "هنوز فعال‌سازی انجام نشده است.",
@@ -1322,6 +1330,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var remainingGb = status.RemainingBytes / 1073741824d;
         var expiry = status.ExpiresAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "نامشخص";
         LicenseStatusText.Text = $"اشتراک فعال · {remainingGb:0.##} گیگابایت باقی‌مانده · پایان اعتبار: {expiry}";
+        if (SubscriptionSummaryText is not null)
+            SubscriptionSummaryText.Text = $"{remainingGb:0.##} گیگابایت باقی‌مانده · انقضا: {expiry}";
+        if (SubscriptionUsageProgress is not null && status.GrantedBytes > 0)
+            SubscriptionUsageProgress.Value = Math.Clamp(100d * status.UsedBytes / status.GrantedBytes, 0d, 100d);
     }
 
     private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshLogs();
