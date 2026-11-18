@@ -1065,7 +1065,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private static long CurrentWindowsVersionCode()
     {
-        var version = typeof(MainWindow).Assembly.GetName().Version ?? new Version(1, 0, 0);
+        var assembly = typeof(MainWindow).Assembly;
+        // The release workflow sets Version=1.0.1-beta.1. AssemblyVersion remains
+        // a stable CLR binding version, so update checks must use the informational SemVer.
+        var informational = assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()?.InformationalVersion;
+
+        var parsed = ParseWindowsVersionCode(informational);
+        if (parsed > 0) return parsed;
+
+        var version = assembly.GetName().Version ?? new Version(1, 0, 0);
         return ((long)Math.Max(0, version.Major) * 1_000_000L) +
                ((long)Math.Max(0, version.Minor) * 1_000L) +
                Math.Max(0, version.Build);
