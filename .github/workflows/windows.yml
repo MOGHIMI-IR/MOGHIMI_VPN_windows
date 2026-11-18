@@ -248,12 +248,15 @@ jobs:
           Write-Host "Installer install, startup and uninstall smoke tests passed."
 
       - name: Publish Installer to Windows Supabase (optional)
-        if: ${{ secrets.WINDOWS_SUPABASE_SERVICE_ROLE_KEY != '' }}
         shell: pwsh
         env:
           WINDOWS_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.WINDOWS_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY)) {
+            Write-Host "WINDOWS_SUPABASE_SERVICE_ROLE_KEY is not configured; skipping Windows Supabase upload."
+            exit 0
+          }
           $base = "https://hxfnoaeyjnkecegpppcy.supabase.co"
           $installer = (Resolve-Path "artifacts\MoghimiVPN-Setup-x64.exe").Path
           $version = if ("$env:GITHUB_REF" -match "^refs/tags/v") { "$env:GITHUB_REF".Split("/")[-1].TrimStart("v") } else { "1.0.0" }
