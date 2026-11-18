@@ -32,6 +32,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private ProxyProfile? _connectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
+    private bool _windowsUpdateCheckRunning;
+    private bool _mandatoryWindowsUpdate;
+    private WindowsReleaseInfo? _availableWindowsRelease;
 
     public ObservableCollection<ProxyProfile> Profiles { get; } = [];
     public ObservableCollection<SubscriptionItem> Subscriptions { get; } = [];
@@ -68,6 +71,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 await RefreshWindowsLicenseStatusAsync(silent: true);
                 if (_license.HasActivation) await SyncCloudAsync(silent: true);
+                await CheckWindowsUpdateAsync(silent: true);
             };
         }
     }
@@ -210,6 +214,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_mandatoryWindowsUpdate)
+        {
+            MessageBox.Show("برای ادامه استفاده از برنامه، ابتدا نسخه جدید ویندوز را نصب کن.",
+                "به‌روزرسانی اجباری", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Navigate(3, "تنظیمات شبکه", "به‌روزرسانی برنامه");
+            return;
+        }
         if (_subscriptionRefreshRunning)
         {
             MessageBox.Show("به‌روزرسانی اشتراک هنوز تمام نشده؛ بعد از پایان آن اتصال را بزن.", "Moghimi VPN", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -379,6 +390,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void SmartConnect_Click(object sender, RoutedEventArgs e)
     {
+        if (_mandatoryWindowsUpdate)
+        {
+            MessageBox.Show("برای استفاده از Smart Connect ابتدا نسخه جدید برنامه را نصب کن.",
+                "به‌روزرسانی اجباری", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Navigate(3, "تنظیمات شبکه", "به‌روزرسانی برنامه");
+            return;
+        }
         if (_connection.IsRunning || _connectionBusy || _manualScanBusy ||
             _cloudSyncRunning || _subscriptionRefreshRunning)
             return;
@@ -1020,6 +1038,153 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+
+    private static long CurrentWindowsVersionCode()
+    {
+        var version = typeof(MainWindow).Assembly.GetName().Version ?? new Version(1, 0, 0);
+        return ((long)Math.Max(0, version.Major) * 1_000_000L) +
+               ((long)Math.Max(0, version.Minor) * 1_000L) +
+               Math.Max(0, version.Build);
+    }
+
+    private static long ParseWindowsVersionCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            value, @"^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)");
+        if (!match.Success) return 0;
+        if (!long.TryParse(match.Groups["major"].Value, out var major) ||
+            !long.TryParse(match.Groups["minor"].Value, out var minor) ||
+            !long.TryParse(match.Groups["patch"].Value, out var patch))
+            return 0;
+        if (major > 100_000 || minor > 999 || patch > 999) return 0;
+        return major * 1_000_000L + minor * 1_000L + patch;
+    }
+
+    private async void CheckWindowsUpdate_Click(object sender, RoutedEventArgs e) =>
+        await CheckWindowsUpdateAsync(silent: false);
+
+    private async Task CheckWindowsUpdateAsync(bool silent)
+    {
+        if (_windowsUpdateCheckRunning) return;
+        _windowsUpdateCheckRunning = true;
+        CheckWindowsUpdateButton.IsEnabled = false;
+        WindowsUpdateStatusText.Text = "در حال بررسی نسخه ویندوز…";
+        try
+        {
+            var release = await _license.GetLatestReleaseAsync();
+            var currentCode = CurrentWindowsVersionCode();
+            if (release is null)
+            {
+                _availableWindowsRelease = null;
+                _mandatoryWindowsUpdate = false;
+                InstallWindowsUpdateButton.IsEnabled = false;
+                WindowsUpdateStatusText.Text = "هنوز نسخه جدیدی برای ویندوز منتشر نشده است.";
+                return;
+            }
+
+            var minimumCode = ParseWindowsVersionCode(release.MinimumSupportedVersion);
+            var updateAvailable = release.VersionCode > currentCode;
+            _mandatoryWindowsUpdate = updateAvailable &&
+                (release.IsMandatory || (minimumCode > 0 && currentCode < minimumCode));
+
+            if (!updateAvailable)
+            {
+                _availableWindowsRelease = null;
+                _mandatoryWindowsUpdate = false;
+                InstallWindowsUpdateButton.IsEnabled = false;
+                WindowsUpdateStatusText.Text = $"برنامه به‌روز است · نسخه فعلی {typeof(MainWindow).Assembly.GetName().Version}";
+                return;
+            }
+
+            _availableWindowsRelease = release;
+            InstallWindowsUpdateButton.IsEnabled = true;
+            var sizeMb = release.FileSize / 1048576d;
+            var statusPrefix = _mandatoryWindowsUpdate ? "به‌روزرسانی اجباری" : "نسخه جدید آماده دریافت";
+            WindowsUpdateStatusText.Text = $"{statusPrefix}: نسخه {release.VersionName} · {sizeMb:0} مگابایت";
+            if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
+                WindowsUpdateStatusText.Text += Environment.NewLine + release.ReleaseNotes;
+
+            if (_mandatoryWindowsUpdate && !silent)
+            {
+                var answer = MessageBox.Show(
+                    $"نسخه {release.VersionName} برای ادامه کار الزامی است. اکنون دریافت و نصب شود؟",
+                    "به‌روزرسانی اجباری", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (answer == MessageBoxResult.Yes) await InstallWindowsUpdateAsync();
+            }
+        }
+        catch (Exception error)
+        {
+            WindowsUpdateStatusText.Text = "بررسی نسخه جدید انجام نشد؛ اینترنت را بررسی کن.";
+            AppendLog("Windows update check failed: " + error.GetType().Name);
+            if (!silent)
+                MessageBox.Show(error.Message, "بررسی به‌روزرسانی", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally
+        {
+            _windowsUpdateCheckRunning = false;
+            CheckWindowsUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void InstallWindowsUpdate_Click(object sender, RoutedEventArgs e) =>
+        await InstallWindowsUpdateAsync();
+
+    private async Task InstallWindowsUpdateAsync()
+    {
+        var release = _availableWindowsRelease;
+        if (release is null) return;
+
+        InstallWindowsUpdateButton.IsEnabled = false;
+        CheckWindowsUpdateButton.IsEnabled = false;
+        try
+        {
+            WindowsUpdateStatusText.Text = $"در حال دانلود نسخه {release.VersionName}…";
+            var progress = new Progress<double>(value =>
+                WindowsUpdateStatusText.Text = $"دانلود نسخه {release.VersionName}: {value:P0}");
+
+            var installer = await _license.DownloadAndVerifyInstallerAsync(release, progress);
+            WindowsUpdateStatusText.Text = "SHA-256 تأیید شد؛ آماده اجرای نصب‌کننده.";
+
+            var confirm = MessageBox.Show(
+                "فایل نصب دریافت و سلامت آن با SHA-256 تأیید شد. برای نصب نسخه جدید، برنامه بسته می‌شود. ادامه می‌دهی؟",
+                "آماده نصب به‌روزرسانی", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                WindowsUpdateStatusText.Text = "نسخه دانلود و بررسی شد؛ نصب به درخواست کاربر متوقف شد.";
+                return;
+            }
+
+            if (_connection.IsRunning)
+            {
+                await ReportWindowsUsageAsync(silent: true);
+                _usageTimer.Stop();
+                await _connection.StopAsync();
+                _connectedProfile = null;
+                _isConnected = false;
+                SetDisconnected("آماده به‌روزرسانی");
+            }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = installer,
+                UseShellExecute = true
+            });
+            Close();
+        }
+        catch (Exception error)
+        {
+            WindowsUpdateStatusText.Text = "دانلود یا نصب به‌روزرسانی انجام نشد.";
+            AppendLog("Windows update install failed: " + error.GetType().Name);
+            MessageBox.Show(error.Message, "به‌روزرسانی ویندوز ناموفق بود",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            InstallWindowsUpdateButton.IsEnabled = _availableWindowsRelease is not null;
+            CheckWindowsUpdateButton.IsEnabled = true;
+        }
+    }
 
     private async void ActivateWindows_Click(object sender, RoutedEventArgs e)
     {
