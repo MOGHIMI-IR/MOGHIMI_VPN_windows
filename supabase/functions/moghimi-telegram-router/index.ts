@@ -375,7 +375,7 @@ async function windowsCallback(update: any) {
 async function windowsAdminMessage(message: any, state: any) {
   const user = message.from, chat = message.chat.id;
   const text = String(message.text ?? message.caption ?? "").trim();
-  const command = text.toLowerCase().replace(/@\\S+$/, "").split(/\\s+/)[0];
+  const command = text.toLowerCase().replace(/@\S+$/, "").split(/\s+/)[0];
   if (state?.state === "admin_quote") {
     const amount = Number(text.replace(/[,\s٬]/g, ""));
     if (!Number.isSafeInteger(amount) || amount < 1000 || amount > 1000000000)
@@ -646,7 +646,7 @@ async function processUpdate(update: any) {
     }
 
     const platform = await getPlatform(userId);
-    const command = text.toLowerCase().replace(/@\\S+$/, "").split(/\\s+/)[0];
+    const command = text.toLowerCase().replace(/@\S+$/, "").split(/\s+/)[0];
     const windowsAdminCommand = [
       "/windowsorders", "/worders", "/orders", "/windows_orders",
       "/windowsthreads", "/wthreads", "/threads", "/windows_threads"
