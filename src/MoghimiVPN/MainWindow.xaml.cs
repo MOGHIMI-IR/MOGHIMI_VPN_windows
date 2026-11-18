@@ -269,7 +269,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             try
             {
-                var license = await _license.GetStatusAsync(token: default);
+                var license = await _license.GetStatusAsync();
                 if (!license.Active)
                 {
                     MessageBox.Show("برای اتصال به سرورهای اختصاصی Moghimi ابتدا اشتراک ویندوز را با کد فعال‌سازی ثبت کن.",
