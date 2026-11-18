@@ -65,6 +65,29 @@ jobs:
             Select-Object -First 1
           if ($license) { Copy-Item $license.FullName "runtime\LICENSE-wintun.txt" -Force }
 
+      - name: Download and bundle Estedad Persian UI font
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/aminabedi68/Estedad/releases/download/8.5/Estedad-v8.5.zip"
+          $archive = Join-Path $env:RUNNER_TEMP "Estedad-v8.5.zip"
+          $extract = Join-Path $env:RUNNER_TEMP "Estedad-v8.5"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $size = (Get-Item $archive).Length
+          if ($size -lt 1000000 -or $size -gt 5000000) { throw "Estedad archive size is outside the expected range." }
+          Expand-Archive $archive $extract -Force
+          $fontNames = @("Estedad-Regular.ttf", "Estedad-Medium.ttf", "Estedad-SemiBold.ttf", "Estedad-Bold.ttf", "Estedad-ExtraBold.ttf")
+          $fontDestination = "src\MoghimiVPN\Assets\Fonts"
+          New-Item -ItemType Directory -Force $fontDestination | Out-Null
+          foreach ($fontName in $fontNames) {
+            $fontFile = Get-ChildItem $extract -Recurse -File -Filter $fontName | Select-Object -First 1
+            if (-not $fontFile -or $fontFile.Length -lt 100000) { throw "Required Estedad font is missing or invalid: $fontName" }
+            Copy-Item $fontFile.FullName (Join-Path $fontDestination $fontName) -Force
+          }
+          $fontLicense = Get-ChildItem $extract -Recurse -File -Filter "OFL.txt" | Select-Object -First 1
+          if (-not $fontLicense) { throw "Estedad OFL license was not found in the pinned release archive." }
+          Copy-Item $fontLicense.FullName (Join-Path $fontDestination "Estedad-OFL.txt") -Force
+
       - name: Restore and publish
         shell: pwsh
         run: |
