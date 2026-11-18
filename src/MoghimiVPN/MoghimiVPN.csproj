@@ -25,9 +25,11 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\moghimi-vpn-icon.png" />
-    <Resource Include="Assets\Fonts\Arad-Regular.ttf" />
-    <Resource Include="Assets\Fonts\Arad-Bold.ttf" />
-    <Resource Include="Assets\Fonts\Arad-ExtraBold.ttf" />
-    <Resource Include="Assets\Fonts\OFL.txt" />
+    <Resource Include="Assets\Fonts\Estedad-Regular.ttf" />
+    <Resource Include="Assets\Fonts\Estedad-Medium.ttf" />
+    <Resource Include="Assets\Fonts\Estedad-SemiBold.ttf" />
+    <Resource Include="Assets\Fonts\Estedad-Bold.ttf" />
+    <Resource Include="Assets\Fonts\Estedad-ExtraBold.ttf" />
+    <Resource Include="Assets\Fonts\Estedad-OFL.txt" />
   </ItemGroup>
 </Project>
