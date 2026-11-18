@@ -21,6 +21,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _usageTimer = new() { Interval = TimeSpan.FromSeconds(30) };
     private Guid _usageSessionId;
     private long _usageSequence;
+    private long _usageReportedDownloadBytes;
+    private long _usageReportedUploadBytes;
+    private readonly SemaphoreSlim _usageReportGate = new(1, 1);
     private DateTimeOffset? _connectedSince;
     private bool _cloudSyncRunning;
     private bool _connectionBusy;
@@ -83,7 +86,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Loaded += async (_, _) =>
             {
                 await RefreshWindowsLicenseStatusAsync(silent: true);
-                if (_license.HasActivation) await SyncCloudAsync(silent: true);
+                var entitlement = await _license.GetStatusAsync();
+                UpdateWindowsLicenseUi(entitlement);
+                if (entitlement.Active) await SyncCloudAsync(silent: true);
                 await CheckWindowsUpdateAsync(silent: true);
             };
         }
@@ -198,6 +203,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SessionUptime.Text = "00:00:00";
             SessionUptime.Foreground = new System.Windows.Media.SolidColorBrush(
                 System.Windows.Media.Color.FromRgb(141, 152, 169));
+            if (TrafficDownloadText is not null) TrafficDownloadText.Text = "0 KB";
+            if (TrafficUploadText is not null) TrafficUploadText.Text = "0 KB";
             return;
         }
 
@@ -206,6 +213,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ? $"{(int)elapsed.TotalDays:00}:{elapsed.Hours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
             : $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
         SessionUptime.Foreground = System.Windows.Media.Brushes.LightGreen;
+        var traffic = _connection.GetTrafficSnapshot();
+        if (TrafficDownloadText is not null) TrafficDownloadText.Text = FormatTraffic(traffic.DownloadBytes);
+        if (TrafficUploadText is not null) TrafficUploadText.Text = FormatTraffic(traffic.UploadBytes);
+    }
+
+    private static string FormatTraffic(long bytes)
+    {
+        var value = Math.Max(0, bytes);
+        const double kib = 1024d, mib = 1024d * 1024d, gib = 1024d * 1024d * 1024d;
+        return value >= gib ? $"{value / gib:0.00} GB"
+            : value >= mib ? $"{value / mib:0.0} MB"
+            : value >= kib ? $"{value / kib:0} KB"
+            : $"{value} B";
     }
 
     private void SetDisconnected(string message)
@@ -305,24 +325,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         _selectedProfile = chosen;
         ProfilesList.SelectedItem = chosen;
-        if (string.Equals(chosen.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
+        try
         {
-            try
+            var entitlement = await _license.GetStatusAsync(forceRefresh: true);
+            UpdateWindowsLicenseUi(entitlement);
+            if (!entitlement.Active)
             {
-                var license = await _license.GetStatusAsync();
-                if (!license.Active)
-                {
-                    MessageBox.Show("برای اتصال به سرورهای اختصاصی Moghimi ابتدا اشتراک ویندوز را با کد فعال‌سازی ثبت کن.",
-                        "نیاز به فعال‌سازی", MessageBoxButton.OK, MessageBoxImage.Information);
-                    Navigate(3, "تنظیمات شبکه", "فعال‌سازی اشتراک ویندوز");
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "بررسی اشتراک ناموفق بود", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    "سهمیه رایگان ۷ گیبی‌بایتی ویندوز و حجم خریداری‌شده قابل استفاده تمام شده است. سهمیه رایگان در شروع ماه UTC بعدی شارژ می‌شود.",
+                    "سهمیه اتصال تمام شده", MessageBoxButton.OK, MessageBoxImage.Information);
+                Navigate(3, "تنظیمات شبکه", "وضعیت سهمیه ویندوز");
                 return;
             }
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Windows entitlement check failed: " + ex.GetType().Name);
+            MessageBox.Show(ex.Message, "بررسی سهمیه ویندوز ناموفق بود", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
         ProfileStore.Instance.State.ActiveProfileId = chosen.Id;
         ProfileStore.Instance.Save();
@@ -346,17 +366,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 throw new InvalidOperationException("هسته اتصال بلافاصله پس از راه‌اندازی متوقف شد.");
             _connectedProfile = chosen;
             _connectedSince = DateTimeOffset.Now;
-            if (chosen.SubscriptionId == "moghimi-cloud")
-            {
-                _usageSessionId = Guid.NewGuid();
-                _usageSequence = 0;
-                _usageTimer.Start();
-            }
-            else
-            {
-                _usageTimer.Stop();
-                _usageSessionId = Guid.Empty;
-            }
+            _usageSessionId = Guid.NewGuid();
+            _usageSequence = 0;
+            _usageReportedDownloadBytes = 0;
+            _usageReportedUploadBytes = 0;
+            _usageTimer.Start();
             _isConnected = true;
             _sessionTimer.Start();
             UpdateSessionClock();
@@ -425,11 +439,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _cloudSyncRunning || _subscriptionRefreshRunning)
             return;
 
-        if (!_license.HasActivation)
+        try
         {
-            MessageBox.Show("برای Smart Connect ابتدا کد فعال‌سازی ویندوز را ثبت کن.",
-                "فعال‌سازی لازم است", MessageBoxButton.OK, MessageBoxImage.Information);
-            Navigate(3, "تنظیمات شبکه", "فعال‌سازی اشتراک ویندوز");
+            await _license.EnsureFreeRegistrationAsync();
+            var entitlement = await _license.GetStatusAsync(forceRefresh: true);
+            UpdateWindowsLicenseUi(entitlement);
+            if (!entitlement.Active)
+            {
+                MessageBox.Show("سهمیه رایگان ۷ گیبی‌بایتی این ماه و حجم خریداری‌شده ویندوز تمام شده است.",
+                    "سهمیه اتصال تمام شده", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(error.Message, "بررسی سهمیه ویندوز", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -539,21 +563,41 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void StartOrbAnimation()
     {
         if (!IsLoaded) return;
-        if (ConnectButton.Template.FindName("OrbPulse", ConnectButton) is not FrameworkElement halo) return;
-        halo.BeginAnimation(OpacityProperty, null);
-        halo.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.18, 0.52, TimeSpan.FromSeconds(1.3))
+        if (ConnectButton.Template.FindName("OrbPulse", ConnectButton) is FrameworkElement halo)
         {
-            AutoReverse = true,
-            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
-            EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }
-        });
+            halo.BeginAnimation(OpacityProperty, null);
+            halo.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.18, 0.58, TimeSpan.FromSeconds(1.25))
+            {
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }
+            });
+        }
+
+        if (ConnectButton.Template.FindName("OrbOrbitRotation", ConnectButton) is System.Windows.Media.RotateTransform orbit)
+        {
+            orbit.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty, null);
+            orbit.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(7))
+                {
+                    RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                    EasingFunction = new System.Windows.Media.Animation.LinearEase()
+                });
+        }
     }
 
     private void StopOrbAnimation()
     {
-        if (ConnectButton?.Template?.FindName("OrbPulse", ConnectButton) is not FrameworkElement halo) return;
-        halo.BeginAnimation(OpacityProperty, null);
-        halo.Opacity = 0.26;
+        if (ConnectButton?.Template?.FindName("OrbPulse", ConnectButton) is FrameworkElement halo)
+        {
+            halo.BeginAnimation(OpacityProperty, null);
+            halo.Opacity = 0.26;
+        }
+        if (ConnectButton?.Template?.FindName("OrbOrbitRotation", ConnectButton) is System.Windows.Media.RotateTransform orbit)
+        {
+            orbit.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty, null);
+            orbit.Angle = 0;
+        }
     }
 
     private void ManualProfile_Click(object sender, RoutedEventArgs e)
@@ -984,10 +1028,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task SyncCloudAsync(bool silent)
     {
         if (_cloudSyncRunning || _subscriptionRefreshRunning) return;
-        if (!_license.HasActivation)
+        try
         {
-            if (LicenseStatusText is not null) LicenseStatusText.Text = "برای دریافت سرورهای Moghimi، کد فعال‌سازی ویندوز را ثبت کن.";
-            if (!silent) MessageBox.Show("ابتدا کد فعال‌سازی ویندوز را در بخش تنظیمات ثبت کن.", "فعال‌سازی لازم است", MessageBoxButton.OK, MessageBoxImage.Information);
+            await _license.EnsureFreeRegistrationAsync();
+        }
+        catch (Exception error)
+        {
+            if (LicenseStatusText is not null) LicenseStatusText.Text = "آماده‌سازی سهمیه رایگان ویندوز ناموفق بود.";
+            if (!silent) MessageBox.Show(error.Message, "ثبت سهمیه ویندوز", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         try
@@ -1255,12 +1303,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            if (!_license.HasActivation)
-            {
-                LicenseStatusText.Text = "هنوز کد فعال‌سازی ویندوز ثبت نشده است.";
-                return;
-            }
-            var status = await _license.GetStatusAsync();
+            await _license.EnsureFreeRegistrationAsync();
+            var status = await _license.GetStatusAsync(forceRefresh: true);
             UpdateWindowsLicenseUi(status);
         }
         catch (Exception ex)
@@ -1272,52 +1316,89 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task ReportWindowsUsageAsync(bool silent)
     {
-        if (_connectedProfile?.SubscriptionId != "moghimi-cloud" ||
-            _usageSessionId == Guid.Empty)
+        if (_usageSessionId == Guid.Empty)
             return;
 
+        await _usageReportGate.WaitAsync();
         try
         {
             var snapshot = _connection.GetTrafficSnapshot();
-            if (snapshot.UploadBytes <= 0 && snapshot.DownloadBytes <= 0) return;
+            if (snapshot.DownloadBytes < _usageReportedDownloadBytes ||
+                snapshot.UploadBytes < _usageReportedUploadBytes)
+                throw new InvalidOperationException("شمارنده ترافیک هسته اتصال به‌صورت غیرمنتظره بازنشانی شد.");
 
-            var sequence = Interlocked.Increment(ref _usageSequence);
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var report = await _license.ReportUsageAsync(
-                _usageSessionId, sequence, snapshot.DownloadBytes, snapshot.UploadBytes, timeout.Token);
-
-            var cached = await _license.GetStatusAsync();
-            UpdateWindowsLicenseUi(new WindowsLicenseStatus
+            // Send cumulative upload/download checkpoints in bounded chunks.
+            const long maxChunkBytes = 128L * 1024 * 1024;
+            while (_usageReportedDownloadBytes < snapshot.DownloadBytes ||
+                   _usageReportedUploadBytes < snapshot.UploadBytes)
             {
-                Active = report.RemainingBytes > 0,
-                GrantedBytes = cached.GrantedBytes,
-                UsedBytes = report.UsedBytes,
-                RemainingBytes = report.RemainingBytes,
-                ExpiresAt = report.ExpiresAt ?? cached.ExpiresAt,
-                Status = report.RemainingBytes <= 0 ? "exhausted" : "active"
-            });
+                var pendingDownload = snapshot.DownloadBytes - _usageReportedDownloadBytes;
+                var pendingUpload = snapshot.UploadBytes - _usageReportedUploadBytes;
+                var addDownload = Math.Min(pendingDownload, maxChunkBytes);
+                var addUpload = Math.Min(pendingUpload, maxChunkBytes - addDownload);
+                var nextDownload = _usageReportedDownloadBytes + addDownload;
+                var nextUpload = _usageReportedUploadBytes + addUpload;
+                var nextSequence = _usageSequence + 1;
 
-            // A successful usage report may consume the last remaining bytes.
-            // Disconnect immediately instead of waiting for a second report/error.
-            if (report.RemainingBytes <= 0)
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                var report = await _license.ReportUsageAsync(
+                    _usageSessionId, nextSequence, nextDownload, nextUpload, timeout.Token);
+
+                // Checkpoints advance only after server acknowledgement. A lost response
+                // can safely be retried with the same sequence because the RPC is idempotent.
+                _usageSequence = nextSequence;
+                _usageReportedDownloadBytes = nextDownload;
+                _usageReportedUploadBytes = nextUpload;
+
+                UpdateWindowsLicenseUi(new WindowsLicenseStatus
+                {
+                    Active = report.RemainingBytes > 0,
+                    FreeLimitBytes = report.FreeLimitBytes,
+                    FreeUsedBytes = report.FreeUsedBytes,
+                    FreeRemainingBytes = report.FreeRemainingBytes,
+                    PaidGrantedBytes = report.PaidGrantedBytes,
+                    PaidUsedBytes = report.PaidUsedBytes,
+                    PaidRemainingBytes = report.PaidRemainingBytes,
+                    FreeMonthStart = report.FreeMonthStart,
+                    GrantedBytes = report.PaidGrantedBytes,
+                    UsedBytes = report.PaidUsedBytes,
+                    RemainingBytes = report.PaidRemainingBytes,
+                    ExpiresAt = report.ExpiresAt,
+                    Status = report.RemainingBytes <= 0 ? "exhausted" : "active"
+                });
+
+                if (report.RemainingBytes <= 0)
+                {
+                    _usageTimer.Stop();
+                    if (!_connectionBusy && _connection.IsRunning)
+                        await ForceDisconnectAfterQuotaAsync();
+                    return;
+                }
+            }
+
+            // Also refresh while idle, so expiry or admin blocking is noticed without traffic.
+            if (snapshot.DownloadBytes == _usageReportedDownloadBytes &&
+                snapshot.UploadBytes == _usageReportedUploadBytes)
             {
-                _usageTimer.Stop();
-                if (!_connectionBusy && _connection.IsRunning)
+                var entitlement = await _license.GetStatusAsync(forceRefresh: true);
+                UpdateWindowsLicenseUi(entitlement);
+                if (!entitlement.Active && !_connectionBusy && _connection.IsRunning)
+                {
+                    _usageTimer.Stop();
                     await ForceDisconnectAfterQuotaAsync();
+                }
             }
         }
         catch (Exception error)
         {
             AppendLog("Windows usage report deferred: " + error.GetType().Name);
-            if (error.Message.Contains("حجم اشتراک ویندوز تمام شده", StringComparison.Ordinal) && !_connectionBusy)
-            {
-                _usageTimer.Stop();
-                await ForceDisconnectAfterQuotaAsync();
-                return;
-            }
             if (!silent)
-                MessageBox.Show("ثبت مصرف انجام نشد؛ برنامه در گزارش بعدی دوباره تلاش می‌کند.",
+                MessageBox.Show("ثبت مصرف انجام نشد؛ برنامه ترافیک را نگه می‌دارد و در گزارش بعدی دوباره می‌فرستد.",
                     "گزارش مصرف", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally
+        {
+            _usageReportGate.Release();
         }
     }
 
@@ -1387,6 +1468,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     {
                         _usageSessionId = Guid.NewGuid();
                         _usageSequence = 0;
+                        _usageReportedDownloadBytes = 0;
+                        _usageReportedUploadBytes = 0;
                         _usageTimer.Start();
                     }
                     _sessionTimer.Start();
@@ -1487,32 +1570,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void UpdateWindowsLicenseUi(WindowsLicenseStatus status)
     {
         if (LicenseStatusText is null) return;
-        if (!status.Active)
-        {
-            if (SubscriptionSummaryText is not null)
-                SubscriptionSummaryText.Text = status.Status switch
-                {
-                    "not_activated" => "اشتراک فعال نشده است",
-                    "exhausted" => "حجم اشتراک تمام شده است",
-                    _ => "اشتراک فعال نیست یا نیاز به بررسی اتصال دارد"
-                };
-            if (SubscriptionUsageProgress is not null) SubscriptionUsageProgress.Value = 0;
-            LicenseStatusText.Text = status.Status switch
-            {
-                "not_activated" => "هنوز فعال‌سازی انجام نشده است.",
-                "exhausted" => "حجم اشتراک تمام شده است.",
-                _ => "اشتراک ویندوز فعال نیست."
-            };
-            return;
-        }
 
-        var remainingGb = status.RemainingBytes / 1073741824d;
-        var expiry = status.ExpiresAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "نامشخص";
-        LicenseStatusText.Text = $"اشتراک فعال · {remainingGb:0.##} گیگابایت باقی‌مانده · پایان اعتبار: {expiry}";
+        var freeLimitGb = status.FreeLimitBytes / 1073741824d;
+        var freeUsedGb = status.FreeUsedBytes / 1073741824d;
+        var freeRemainingGb = status.FreeRemainingBytes / 1073741824d;
+        if (FreeQuotaSummaryText is not null)
+            FreeQuotaSummaryText.Text = $"{freeRemainingGb:0.##} گیبی‌بایت باقی‌مانده از {freeLimitGb:0} گیبی‌بایت";
+        if (FreeQuotaDetailText is not null)
+        {
+            var monthLabel = DateOnly.TryParse(status.FreeMonthStart, out var monthStart)
+                ? monthStart.ToString("yyyy/MM")
+                : "ماه جاری UTC";
+            FreeQuotaDetailText.Text = $"{freeUsedGb:0.##} GB مصرف‌شده · بازنشانی: {monthLabel}";
+        }
+        if (FreeUsageProgress is not null && status.FreeLimitBytes > 0)
+            FreeUsageProgress.Value = Math.Clamp(100d * status.FreeUsedBytes / status.FreeLimitBytes, 0d, 100d);
+
+        var paidRemainingGb = status.PaidRemainingBytes / 1073741824d;
+        if (PaidQuotaSummaryText is not null)
+            PaidQuotaSummaryText.Text = status.PaidRemainingBytes > 0
+                ? $"{paidRemainingGb:0.##} GB حجم خریداری‌شده باقی‌مانده"
+                : "حجم خریداری‌شده فعال نیست";
         if (SubscriptionSummaryText is not null)
-            SubscriptionSummaryText.Text = $"{remainingGb:0.##} گیگابایت باقی‌مانده · انقضا: {expiry}";
-        if (SubscriptionUsageProgress is not null && status.GrantedBytes > 0)
-            SubscriptionUsageProgress.Value = Math.Clamp(100d * status.UsedBytes / status.GrantedBytes, 0d, 100d);
+            SubscriptionSummaryText.Text = status.Active
+                ? "دسترسی ویندوز فعال است"
+                : "سهمیه قابل استفاده تمام شده است";
+        if (SubscriptionUsageProgress is not null && status.PaidGrantedBytes > 0)
+            SubscriptionUsageProgress.Value = Math.Clamp(100d * status.PaidUsedBytes / status.PaidGrantedBytes, 0d, 100d);
+
+        var freeMonth = status.FreeMonthStart ?? "ماه جاری UTC";
+        LicenseStatusText.Text = status.Active
+            ? $"ویندوز فعال · {freeRemainingGb:0.##} GB سهمیه رایگان · {paidRemainingGb:0.##} GB حجم خریداری‌شده · دوره {freeMonth}"
+            : status.Status == "exhausted"
+                ? "سهمیه رایگان و حجم خریداری‌شده تمام شده است."
+                : "سهمیه ویندوز در دسترس نیست؛ وضعیت اتصال را بررسی کن.";
     }
 
     private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshLogs();

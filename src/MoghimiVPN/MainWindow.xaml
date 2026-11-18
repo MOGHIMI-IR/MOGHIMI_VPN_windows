@@ -142,6 +142,7 @@
                                     <TextBlock Text="یک اتصال امن، با انتخاب خودت" FontSize="26" FontWeight="Bold" Margin="0,8,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="SECURE TUNNEL  ·  LOW LATENCY" Foreground="#C1B5E9" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,5"/>
                                     <Button x:Name="ConnectButton" Click="ConnectButton_Click" Width="196" Height="196" Padding="0" Background="Transparent" BorderThickness="0">
                                         <Button.Effect>
                                             <DropShadowEffect Color="#A78BFA" BlurRadius="38" ShadowDepth="0" Opacity="0.48"/>
@@ -150,6 +151,9 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Grid>
                                                     <Ellipse x:Name="OrbPulse" Fill="#467F91FF" Opacity="0.26" Stroke="#788CFF" StrokeThickness="1.5"/>
+                                                    <Ellipse x:Name="OrbOrbit" Margin="3" Stroke="#B9A5FF" StrokeThickness="1.3" StrokeDashArray="2 5" Opacity="0.78">
+                                                        <Ellipse.RenderTransform><RotateTransform x:Name="OrbOrbitRotation" CenterX="95" CenterY="95"/></Ellipse.RenderTransform>
+                                                    </Ellipse>
                                                     <Ellipse Margin="10" Fill="#302346" Stroke="#A78BFA" StrokeThickness="1.5"/>
                                                     <Ellipse Margin="18">
                                                         <Ellipse.Fill>
@@ -200,33 +204,51 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="0" Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,14,0">
+                        <Border Grid.Column="0" Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,14,0" Padding="18,15">
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="شبکه" Foreground="#8996A9" FontSize="14"/>
-                                    <TextBlock Text="VPN / Proxy" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="حالت شبکه" Foreground="#A9B4D0" FontSize="12"/>
+                                    <TextBlock Text="VPN / Proxy" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="DNS" Foreground="#8996A9" FontSize="14"/>
-                                    <TextBlock x:Name="DnsSummary" Text="1.1.1.1" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="DNS" Foreground="#A9B4D0" FontSize="12"/>
+                                    <TextBlock x:Name="DnsSummary" Text="1.1.1.1" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="پروفایل‌ها" Foreground="#8996A9" FontSize="14"/>
-                                    <TextBlock x:Name="ProfileCountSummary" Text="0" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="پروفایل‌ها" Foreground="#A9B4D0" FontSize="12"/>
+                                    <TextBlock x:Name="ProfileCountSummary" Text="0" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3">
+                                    <TextBlock Text="دریافت" Foreground="#8DE5CB" FontSize="12"/>
+                                    <TextBlock x:Name="TrafficDownloadText" Text="0 KB" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="ارسال" Foreground="#EACB83" FontSize="12"/>
+                                    <TextBlock x:Name="TrafficUploadText" Text="0 KB" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <Border Grid.Column="1" Grid.Row="1" Style="{StaticResource Card}" Padding="18,16">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,6">
-                                    <TextBlock Text="اشتراک ویندوز" FontWeight="SemiBold" FontSize="16"/>
-                                    <TextBlock Text="وضعیت و حجم باقی‌مانده" Foreground="#B8AECF" FontSize="14" HorizontalAlignment="Left"/>
+                        <Border Grid.Column="1" Grid.Row="1" Style="{StaticResource Card}" Padding="18,14" Background="#9C1F3250">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid>
+                                    <TextBlock Text="سهمیه اختصاصی ویندوز" FontWeight="SemiBold" FontSize="16"/>
+                                    <Border HorizontalAlignment="Left" Background="#523B9975" BorderBrush="#8875D6B5" BorderThickness="1" CornerRadius="10" Padding="8,3">
+                                        <TextBlock Text="7 GB / MONTH" FontSize="11" FontWeight="Bold" Foreground="#A9F2D8"/>
+                                    </Border>
                                 </Grid>
-                                <TextBlock x:Name="SubscriptionSummaryText" Text="برای نمایش وضعیت، کد فعال‌سازی را ثبت کن." Foreground="#F1E9CF" TextWrapping="Wrap" FontSize="14" Margin="0,4,0,9"/>
-                                <ProgressBar x:Name="SubscriptionUsageProgress" Height="7" Minimum="0" Maximum="100" Value="0" Background="#312A45" Foreground="#E8C66A" BorderThickness="0"/>
-                                <TextBlock Text="کانفیگ‌های اختصاصی مقیمی با اشتراک ویندوز فعال می‌شوند." Foreground="#B7B0C9" TextWrapping="Wrap" FontSize="14" Margin="0,8,0,0"/>
-                            </StackPanel>
+                                <Grid Grid.Row="1" Margin="0,8,0,4">
+                                    <TextBlock x:Name="FreeQuotaSummaryText" Text="در حال محاسبه سهمیه…" FontSize="14" FontWeight="SemiBold" Foreground="#F5F2FF"/>
+                                    <TextBlock x:Name="FreeQuotaDetailText" Text="مصرف ماه جاری" HorizontalAlignment="Left" FontSize="12" Foreground="#B8C2D7"/>
+                                </Grid>
+                                <ProgressBar x:Name="FreeUsageProgress" Grid.Row="2" Height="8" Minimum="0" Maximum="100" Value="0" Background="#302A45" Foreground="#69D8BB" BorderThickness="0"/>
+                                <Grid Grid.Row="3" Margin="0,8,0,0">
+                                    <TextBlock x:Name="PaidQuotaSummaryText" Text="حجم خریداری‌شده فعال نیست" FontSize="12" Foreground="#E8D49B"/>
+                                    <TextBlock x:Name="SubscriptionSummaryText" Text="در حال بررسی وضعیت…" HorizontalAlignment="Left" FontSize="12" Foreground="#AEB9D0"/>
+                                </Grid>
+                                <ProgressBar x:Name="SubscriptionUsageProgress" Grid.Row="3" Height="4" VerticalAlignment="Bottom" Margin="0,19,0,0" Minimum="0" Maximum="100" Value="0" Background="#302A45" Foreground="#E8C66A" BorderThickness="0"/>
+                            </Grid>
                         </Border>
                     </Grid>
                 </TabItem>
