@@ -746,7 +746,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AddProfiles(List<ProxyProfile> items, string source)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
             MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -766,7 +766,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning)
+        if (_connectionBusy || _manualScanBusy || _cloudSyncRunning || _subscriptionRefreshRunning)
         {
             MessageBox.Show("تا پایان عملیات جاری، فهرست سرورها را تغییر نده.",
                 "عملیات در حال اجرا", MessageBoxButton.OK, MessageBoxImage.Information);
