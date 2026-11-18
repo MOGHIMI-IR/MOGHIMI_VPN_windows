@@ -307,6 +307,17 @@
                 <TabItem>
                     <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#302A2742" BorderBrush="#9C8556" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="فعال‌سازی اشتراک ویندوز" Style="{StaticResource SectionTitle}" Foreground="#F4D88B"/>
+                                    <TextBlock Text="کد خرید ویندوز را از بات تلگرام دریافت کن و اینجا ثبت کن. اطلاعات فعال‌سازی با DPAPI برای حساب فعلی ویندوز رمزگذاری می‌شود." Foreground="#C9C3D9" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <TextBlock x:Name="LicenseStatusText" Text="در حال بررسی وضعیت اشتراک…" Foreground="#E8D9A8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                    <WrapPanel>
+                                        <Button x:Name="ActivateWindowsButton" Click="ActivateWindows_Click" Content="ثبت کد فعال‌سازی" Margin="4,0" Background="#6D55B8" BorderBrush="#B69AF2"/>
+                                        <Button Click="RefreshWindowsLicense_Click" Content="بررسی مجدد اشتراک" Margin="4,0" Background="#4A432B" BorderBrush="#B69A53"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="حالت اتصال" Style="{StaticResource SectionTitle}"/>
