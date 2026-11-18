@@ -183,6 +183,55 @@ public sealed class WindowsLicenseService
         };
     }
 
+
+    public async Task<List<ProxyProfile>> FetchMoghimiCloudProfilesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasActivation)
+            throw new InvalidOperationException("برای دریافت سرورهای اختصاصی مقیمی، ابتدا کد فعال‌سازی ویندوز را ثبت کن.");
+
+        using var document = await PostAsync(new { action = "profiles" }, DeviceToken, cancellationToken);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("فهرست سرورهای ویندوز معتبر نیست.");
+
+        if (entries.GetArrayLength() > 2000)
+            throw new InvalidOperationException("تعداد سرورهای دریافتی از سقف مجاز بیشتر است.");
+
+        var profiles = new List<ProxyProfile>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        long totalBytes = 0;
+
+        foreach (var entry in entries.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var title = entry.TryGetProperty("title", out var titleValue)
+                ? titleValue.GetString()
+                : null;
+            var payload = entry.TryGetProperty("config_text", out var configValue)
+                ? configValue.GetString() ?? ""
+                : "";
+
+            totalBytes += Encoding.UTF8.GetByteCount(payload);
+            if (totalBytes > 16 * 1024 * 1024)
+                throw new InvalidOperationException("حجم فهرست سرورها از سقف ۱۶ مگابایت بیشتر است؛ فهرست قبلی حفظ شد.");
+
+            foreach (var profile in ProfileCodec.DecodeMany(payload))
+            {
+                if (profile.Name == "سرور جدید" && !string.IsNullOrWhiteSpace(title))
+                    profile.Name = title;
+                profile.SubscriptionId = "moghimi-cloud";
+                var key = $"{profile.Protocol}|{profile.Server}|{profile.Port}|{profile.Uuid}|{profile.Password}";
+                if (seen.Add(key))
+                    profiles.Add(profile);
+                if (profiles.Count > 2000)
+                    throw new InvalidOperationException("تعداد کانفیگ‌های معتبر از سقف مجاز بیشتر است.");
+            }
+        }
+
+        return profiles;
+    }
+
     private static long ReadInt64(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.TryGetInt64(out var number) ? number : 0;
 
