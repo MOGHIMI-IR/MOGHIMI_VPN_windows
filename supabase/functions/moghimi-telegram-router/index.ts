@@ -451,11 +451,16 @@ async function windowsUserMessage(message: any, state: any) {
   }
   if (state?.state === "username") {
     const username = text.replace(/^@/, "");
-    if (!/^[A-Za-z0-9_]{5,32}$/.test(username) ||
-        !user.username || username.toLowerCase() !== user.username.toLowerCase())
-      return send(chat, "نام کاربری واردشده باید دقیقاً با نام کاربری همین حساب تلگرامت یکسان باشد.");
-    await setState(user.id, chat, "phone", { ...state.data, username });
-    return send(chat, "شماره موبایل را وارد کن؛ باید با 09 شروع شود و دقیقاً ۱۱ رقم باشد.");
+    if (user.username) {
+      if (!/^[A-Za-z0-9_]{5,32}$/.test(username) ||
+          username.toLowerCase() !== user.username.toLowerCase())
+        return send(chat, "نام کاربری واردشده باید دقیقاً با نام کاربری همین حساب تلگرامت یکسان باشد.");
+    } else if (!["ندارم", "بدون", "no", "none"].includes(username.toLowerCase())) {
+      return send(chat, "این حساب Username ندارد؛ کلمه «ندارم» را وارد کن تا با شناسه تلگرام ثبت شود.");
+    }
+    const storedUsername = user.username ?? ("telegram_" + user.id);
+    await setState(user.id, chat, "phone", { ...state.data, username: storedUsername });
+    return send(chat, "شماره موبایل را وارد کن؛ با کد کشور ایران یا صفر ابتدایی واردش کن.");
   }
   if (state?.state === "phone") {
     if (!/^09\d{9}$/.test(text))
