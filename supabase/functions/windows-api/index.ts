@@ -78,6 +78,14 @@ async function getAuthenticatedDevice(request: Request) {
   if (!Array.isArray(devices) || devices.length !== 1) return null;
 
   const device = devices[0];
+  const customers = await db(
+    "windows_customers?telegram_user_id=eq." + device.telegram_user_id +
+    "&select=is_blocked&limit=1"
+  );
+  if (!Array.isArray(customers) || customers.length !== 1 || customers[0].is_blocked === true) {
+    return null;
+  }
+
   const subscriptions = await db(
     "windows_subscriptions?device_id=eq." + device.id +
     "&select=id,granted_bytes,used_bytes,starts_at,expires_at,status" +
