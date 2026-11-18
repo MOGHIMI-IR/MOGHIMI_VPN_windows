@@ -12,7 +12,7 @@ const WIN_KEY = (() => {
 })();
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const BOT_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
-const MOBILE_WEBHOOK_SECRET = Deno.env.get("MOBILE_BOT_WEBHOOK_SECRET") ?? "";
+const MOBILE_WEBHOOK_SECRET = Deno.env.get("MOBILE_BOT_WEBHOOK_SECRET") || BOT_SECRET;
 const MOBILE_FUNCTION_URL = "https://qaxiunpklkbgfjwmpwfp.supabase.co/functions/v1/moghimi-telegram";
 const CARD = Deno.env.get("PAYMENT_CARD_NUMBER") ?? "";
 const ENV_ADMINS = new Set((Deno.env.get("TELEGRAM_ADMIN_IDS") ?? "").split(",").map(x => x.trim()).filter(Boolean));
