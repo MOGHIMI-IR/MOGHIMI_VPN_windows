@@ -130,60 +130,39 @@ else
     Console.Error.WriteLine("FAIL  subscription size: oversized response was accepted.");
 }
 
-var cloudTextEntries = JsonSerializer.Serialize(new[]
-{
-    new
-    {
-        title = "Cloud test profile",
-        entry_type = "text",
-        config_text = ProfileCodec.Encode(profiles[0]),
-        file_path = (string?)null
-    }
-});
+var cloudProfile = profiles[0];
+cloudProfile.Name = "Cloud test profile";
+cloudProfile.SubscriptionId = "moghimi-cloud";
 try
 {
-    using var http = new HttpClient(new SmokeCloudHandler(cloudTextEntries));
-    var fetched = await new CloudSync(http).FetchActiveProfilesAsync();
+    var fetched = await new CloudSync(new SmokeWindowsCloudCatalog([cloudProfile])).FetchActiveProfilesAsync();
     if (fetched.Count != 1 ||
         fetched[0].SubscriptionId != "moghimi-cloud" ||
         fetched[0].Protocol != profiles[0].Protocol)
-        throw new InvalidOperationException("Cloud sync did not import the active text entry correctly.");
-    Console.WriteLine("PASS  cloud sync     active Supabase text entry");
+        throw new InvalidOperationException("Windows cloud catalog did not preserve the active profile.");
+    Console.WriteLine("PASS  Windows cloud  active profile catalog injection");
 }
 catch (Exception error)
 {
-    failures.Add("cloud text entry: " + error.Message);
-    Console.Error.WriteLine("FAIL  cloud sync     active Supabase text entry: " + error.Message);
+    failures.Add("Windows cloud catalog: " + error.Message);
+    Console.Error.WriteLine("FAIL  Windows cloud catalog: " + error.Message);
 }
 
-var cloudFileEntries = JsonSerializer.Serialize(new[]
-{
-    new
-    {
-        title = "Cloud file",
-        entry_type = "file",
-        config_text = (string?)null,
-        file_path = "configs/remote.txt"
-    }
-});
-var externalStorageBlocked = false;
+var failedCloudFetchPreserved = false;
 try
 {
-    using var http = new HttpClient(new SmokeCloudHandler(
-        cloudFileEntries,
-        signedUrl: "https://attacker.example/storage/v1/object/sign/v2ray-files/remote.txt?token=test"));
-    await new CloudSync(http).FetchActiveProfilesAsync();
+    await new CloudSync(new SmokeWindowsCloudCatalog(new InvalidOperationException("simulated network failure"))).FetchActiveProfilesAsync();
 }
-catch (InvalidOperationException error) when (error.Message.Contains("خارج از دامنه", StringComparison.Ordinal))
+catch (InvalidOperationException error) when (error.Message.Contains("simulated network failure", StringComparison.Ordinal))
 {
-    externalStorageBlocked = true;
+    failedCloudFetchPreserved = true;
 }
-if (externalStorageBlocked)
-    Console.WriteLine("PASS  cloud sync     foreign signed storage URL blocked");
+if (failedCloudFetchPreserved)
+    Console.WriteLine("PASS  Windows cloud  failed fetch surfaces without clearing cached catalog");
 else
 {
-    failures.Add("cloud storage: external signed URL was accepted.");
-    Console.Error.WriteLine("FAIL  cloud sync     external signed storage URL was accepted.");
+    failures.Add("Windows cloud catalog: failed fetch was not propagated.");
+    Console.Error.WriteLine("FAIL  Windows cloud catalog: failed fetch was not propagated.");
 }
 
 var tempRoot = Path.Combine(Path.GetTempPath(), "MoghimiVPN-ConfigSmoke-" + Guid.NewGuid().ToString("N"));
@@ -414,5 +393,22 @@ internal sealed class SmokeCloudHandler : HttpMessageHandler
         {
             RequestMessage = new HttpRequestMessage(request.Method, request.RequestUri)
         });
+    }
+}
+
+
+sealed class SmokeWindowsCloudCatalog : MoghimiVPN.IWindowsCloudCatalog
+{
+    private readonly List<MoghimiVPN.ProxyProfile>? _profiles;
+    private readonly Exception? _error;
+
+    public SmokeWindowsCloudCatalog(List<MoghimiVPN.ProxyProfile> profiles) => _profiles = profiles;
+    public SmokeWindowsCloudCatalog(Exception error) => _error = error;
+
+    public Task<List<MoghimiVPN.ProxyProfile>> FetchMoghimiCloudProfilesAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_error is not null) throw _error;
+        return Task.FromResult(_profiles ?? []);
     }
 }
