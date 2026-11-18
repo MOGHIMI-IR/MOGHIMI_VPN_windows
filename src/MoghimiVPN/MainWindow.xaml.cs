@@ -1100,9 +1100,43 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception error)
         {
             AppendLog("Windows usage report deferred: " + error.GetType().Name);
+            if (error.Message.Contains("حجم اشتراک ویندوز تمام شده", StringComparison.Ordinal) && !_connectionBusy)
+            {
+                _usageTimer.Stop();
+                await ForceDisconnectAfterQuotaAsync();
+                return;
+            }
             if (!silent)
                 MessageBox.Show("ثبت مصرف انجام نشد؛ برنامه در گزارش بعدی دوباره تلاش می‌کند.",
                     "گزارش مصرف", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private async Task ForceDisconnectAfterQuotaAsync()
+    {
+        if (!_connection.IsRunning || _connectionBusy) return;
+        _connectionBusy = true;
+        ConnectButton.IsEnabled = false;
+        try
+        {
+            await _connection.StopAsync();
+            _connectedProfile = null;
+            _isConnected = false;
+            _usageSessionId = Guid.Empty;
+            SetDisconnected("حجم اشتراک تمام شد");
+            UpdateDashboard();
+            MessageBox.Show("حجم اشتراک ویندوز به پایان رسید؛ اتصال قطع شد.",
+                "اتمام حجم اشتراک", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception error)
+        {
+            AppendLog("Quota disconnect failed: " + error.GetType().Name);
+        }
+        finally
+        {
+            _connectionBusy = false;
+            ConnectButton.IsEnabled = true;
+            UpdateDashboard();
         }
     }
 
