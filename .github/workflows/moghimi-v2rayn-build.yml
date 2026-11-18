@@ -1,0 +1,69 @@
+name: Moghimi v2rayN Windows CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v2rayn-base
+    paths:
+      - "v2rayN/**"
+      - ".github/workflows/moghimi-v2rayn-build.yml"
+      - "MOGHIMI-UPSTREAM.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: moghimi-v2rayn-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore WPF project
+        shell: pwsh
+        run: |
+          dotnet restore "./v2rayN/v2rayN/v2rayN.csproj" -p:EnableWindowsTargeting=true
+          if ($LASTEXITCODE -ne 0) { throw "WPF restore failed." }
+
+      - name: Build WPF project
+        shell: pwsh
+        run: |
+          dotnet build "./v2rayN/v2rayN/v2rayN.csproj" -c Release -p:EnableWindowsTargeting=true --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "WPF build failed." }
+
+      - name: Run upstream service tests
+        shell: pwsh
+        run: |
+          dotnet restore "./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj" -p:EnableWindowsTargeting=true
+          if ($LASTEXITCODE -ne 0) { throw "ServiceLib test restore failed." }
+          dotnet test --project "./v2rayN/ServiceLib.Tests" -c Release -p:EnableWindowsTargeting=true --results-directory "./TestResults"
+          if ($LASTEXITCODE -ne 0) { throw "ServiceLib tests failed." }
+
+      - name: Publish Windows x64 app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "./artifacts/v2rayN-Windows-x64" | Out-Null
+          dotnet publish "./v2rayN/v2rayN/v2rayN.csproj" -c Release -r win-x64 --self-contained true -p:EnableWindowsTargeting=true -o "./artifacts/v2rayN-Windows-x64"
+          if ($LASTEXITCODE -ne 0) { throw "Windows publish failed." }
+          if (!(Test-Path "./artifacts/v2rayN-Windows-x64/v2rayN.exe")) { throw "Published v2rayN.exe is missing." }
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moghimi-v2rayN-Windows-x64
+          path: ./artifacts/v2rayN-Windows-x64
+          if-no-files-found: error
+          retention-days: 14
