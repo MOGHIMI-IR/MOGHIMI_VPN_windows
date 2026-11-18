@@ -1,11 +1,16 @@
 namespace MoghimiVPN;
 
+public interface IWindowsCloudCatalog
+{
+    Task<List<ProxyProfile>> FetchMoghimiCloudProfilesAsync(CancellationToken cancellationToken = default);
+}
+
 public sealed class CloudSync
 {
-    private readonly WindowsLicenseService _license;
+    private readonly IWindowsCloudCatalog _catalog;
 
-    public CloudSync(WindowsLicenseService license) => _license = license;
+    public CloudSync(IWindowsCloudCatalog catalog) => _catalog = catalog;
 
     public Task<List<ProxyProfile>> FetchActiveProfilesAsync(CancellationToken cancellationToken = default) =>
-        _license.FetchMoghimiCloudProfilesAsync(cancellationToken);
+        _catalog.FetchMoghimiCloudProfilesAsync(cancellationToken);
 }
