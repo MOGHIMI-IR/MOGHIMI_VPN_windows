@@ -115,7 +115,7 @@ public sealed class ConnectionManager : IDisposable
                 _systemProxyPort = proxyPort;
                 SystemProxyController.Enable(port: proxyPort);
                 _systemProxyEnabled = true;
-                if (_HasExitedSafely(process))
+                if (HasExitedSafely(startedProcess))
                 {
                     SystemProxyController.Restore();
                     _systemProxyEnabled = false;
@@ -123,7 +123,7 @@ public sealed class ConnectionManager : IDisposable
                 }
             }
 
-            if (_HasExitedSafely(process))
+            if (HasExitedSafely(startedProcess))
                 throw new InvalidOperationException("هسته VPN پیش از تکمیل راه‌اندازی متوقف شد.");
 
             _trafficMonitorCts?.Dispose();
