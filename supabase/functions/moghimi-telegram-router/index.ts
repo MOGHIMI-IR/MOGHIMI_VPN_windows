@@ -583,17 +583,32 @@ async function processUpdate(update: any) {
     }
 
     const platform = await getPlatform(userId);
+    const command = text.replace(/@[^\\s]+$/, "");
+    const windowsAdminCommand = ["/windowsorders", "/worders", "/windowsthreads", "/wthreads"].includes(command);
+
+    const admins = new Set(ENV_ADMINS);
+    if (platform === "windows" || platform === null || windowsAdminCommand) {
+      try {
+        const rows = await db("windows_telegram_admins?telegram_user_id=eq." + userId +
+          "&enabled=eq.true&select=telegram_user_id");
+        if (rows?.length) admins.add(String(userId));
+      } catch { }
+    }
+
+    if (admins.has(String(userId))) {
+      const adminState = await getState(userId);
+      const windowsAdminContinuation = adminState &&
+        (adminState.state === "admin_quote" || adminState.state === "admin_reply");
+      if (windowsAdminCommand || windowsAdminContinuation || platform === "windows")
+        return windowsAdminMessage(message, adminState);
+    }
+
+    // Android admins and users stay on the original mobile bot unless an explicit
+    // Windows admin command/continuation is active.
     if (platform === "mobile") return forwardToMobile(update);
     if (platform !== "windows") return send(chatId, "ابتدا پلتفرم را انتخاب کن:", platformMenu());
 
-    const admins = new Set(ENV_ADMINS);
-    try {
-      const rows = await db("windows_telegram_admins?telegram_user_id=eq." + userId +
-        "&enabled=eq.true&select=telegram_user_id");
-      if (rows?.length) admins.add(String(userId));
-    } catch { }
     const state = await getState(userId);
-    if (admins.has(String(userId))) return windowsAdminMessage(message, state);
     return windowsUserMessage(message, state);
   }
 }
