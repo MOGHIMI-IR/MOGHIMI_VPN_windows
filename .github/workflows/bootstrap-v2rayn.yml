@@ -1,0 +1,124 @@
+name: Bootstrap v2rayN Windows base
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v2rayn-base
+    paths:
+      - ".github/workflows/bootstrap-v2rayn.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v2rayn-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Moghimi repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve bootstrap workflow
+        shell: pwsh
+        run: |
+          $bootstrap = Join-Path $env:RUNNER_TEMP "bootstrap-v2rayn.yml"
+          Copy-Item ".github/workflows/bootstrap-v2rayn.yml" $bootstrap -Force
+          "BOOTSTRAP_FILE=$bootstrap" >> $env:GITHUB_ENV
+
+      - name: Fetch official v2rayN release source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $env:RUNNER_TEMP "v2rayN-source"
+          git clone --depth 1 --branch 7.25.6 --recurse-submodules https://github.com/2dust/v2rayN.git $source
+          if ($LASTEXITCODE -ne 0) { throw "Unable to fetch the official v2rayN source tag 7.25.6." }
+          if (!(Test-Path (Join-Path $source "v2rayN/v2rayN/v2rayN.csproj"))) {
+            throw "The expected WPF project was not found in the upstream source."
+          }
+          "UPSTREAM_SOURCE=$source" >> $env:GITHUB_ENV
+
+      - name: Replace old native client with v2rayN source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } |
+            Remove-Item -Recurse -Force
+          Get-ChildItem -Force $env:UPSTREAM_SOURCE |
+            Where-Object { $_.Name -ne ".git" } |
+            ForEach-Object {
+              Copy-Item $_.FullName -Destination $PWD -Recurse -Force
+            }
+          New-Item -ItemType Directory -Force ".github/workflows" | Out-Null
+          Copy-Item $env:BOOTSTRAP_FILE ".github/workflows/bootstrap-v2rayn.yml" -Force
+
+          @'
+          # Moghimi Windows Client — upstream foundation
+          
+          This repository is based on the official 2dust/v2rayN project, release tag 7.25.6.
+          The Windows WPF interface and existing Xray / sing-box connection stack are the upstream foundation.
+          
+          Moghimi-specific UI, device identity, quota, activation and Supabase integration are maintained as modifications in this repository.
+          
+          Upstream project: https://github.com/2dust/v2rayN
+          Upstream license: GPL-3.0 (see LICENSE). This fork preserves the upstream license and attribution.
+          '@ | Set-Content -Encoding utf8 "MOGHIMI-UPSTREAM.md"
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore upstream WPF project
+        shell: pwsh
+        run: |
+          dotnet restore "./v2rayN/v2rayN/v2rayN.csproj" -p:EnableWindowsTargeting=true
+          if ($LASTEXITCODE -ne 0) { throw "v2rayN restore failed." }
+
+      - name: Publish upstream WPF client
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "v2rayn-wpf-publish"
+          dotnet publish "./v2rayN/v2rayN/v2rayN.csproj" -c Release -r win-x64 --self-contained true -p:EnableWindowsTargeting=true -o $output
+          if ($LASTEXITCODE -ne 0) { throw "v2rayN WPF publish failed." }
+          if (!(Test-Path (Join-Path $output "v2rayN.exe"))) { throw "The WPF executable was not produced." }
+          "PUBLISH_OUTPUT=$output" >> $env:GITHUB_ENV
+
+      - name: Run upstream service tests
+        shell: pwsh
+        run: |
+          dotnet test "./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj" -c Release -p:EnableWindowsTargeting=true --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "v2rayN ServiceLib unit tests failed." }
+
+      - name: Upload upstream WPF build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moghimi-v2rayN-Windows-WPF-7.25.6-base
+          path: ${{ env.PUBLISH_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Commit imported upstream base
+        shell: pwsh
+        env:
+          GIT_AUTHOR_NAME: Moghimi Build Bot
+          GIT_AUTHOR_EMAIL: actions@users.noreply.github.com
+          GIT_COMMITTER_NAME: Moghimi Build Bot
+          GIT_COMMITTER_EMAIL: actions@users.noreply.github.com
+        run: |
+          $ErrorActionPreference = "Stop"
+          git add -A
+          if (git diff --cached --quiet) {
+            Write-Host "Upstream source is already present."
+            exit 0
+          }
+          git commit -m "Adopt official v2rayN 7.25.6 WPF connection base"
+          if ($LASTEXITCODE -ne 0) { throw "Could not commit the imported upstream source." }
+          git push origin "HEAD:$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { throw "Could not push the imported upstream source." }
