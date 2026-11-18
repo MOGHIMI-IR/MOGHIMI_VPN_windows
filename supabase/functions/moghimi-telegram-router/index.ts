@@ -654,17 +654,12 @@ Deno.serve(async (request: Request) => {
     updateId = Number.isSafeInteger(candidateId) ? candidateId : null;
 
     if (updateId !== null) {
-      const inserted = await db("windows_telegram_updates?on_conflict=update_id", "POST", {
-        update_id: updateId, status: "received", error_code: null
-      }, "resolution=ignore-duplicates,return=representation");
-
-      if (Array.isArray(inserted) && inserted.length === 0) {
-        const prior = await db("windows_telegram_updates?update_id=eq." + updateId + "&select=status");
-        if (prior?.[0]?.status !== "failed") return json({ ok: true, duplicate: true });
-        await db("windows_telegram_updates?update_id=eq." + updateId, "PATCH", {
-          status: "received", error_code: null
-        }, "return=minimal");
-      }
+      const claim = await db("rpc/windows_claim_telegram_update", "POST", {
+        p_update_id: updateId,
+        p_stale_seconds: 120
+      });
+      if (!Array.isArray(claim) || claim[0]?.claimed !== true)
+        return json({ ok: true, duplicate: true });
     }
 
     await processUpdate(update);
