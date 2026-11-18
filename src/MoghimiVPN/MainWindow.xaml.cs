@@ -1415,9 +1415,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ProbeProgress.Visibility = Visibility.Collapsed;
             StopOrbAnimation();
             ConnectButton.IsEnabled = true;
-            UpdateDashboard();
-            if (retryAgain)
-                Dispatcher.BeginInvoke(new Action(() => _ = HandleUnexpectedEngineExitAsync()));
+
+            if (_closeAfterBusyOperation)
+            {
+                _closeAfterBusyOperation = false;
+                if (_connection.IsRunning)
+                {
+                    await ReportWindowsUsageAsync(silent: true);
+                    _usageTimer.Stop();
+                    await _connection.StopAsync();
+                }
+                Close();
+            }
+            else
+            {
+                UpdateDashboard();
+                if (retryAgain)
+                    Dispatcher.BeginInvoke(new Action(() => _ = HandleUnexpectedEngineExitAsync()));
+            }
         }
     }
 
