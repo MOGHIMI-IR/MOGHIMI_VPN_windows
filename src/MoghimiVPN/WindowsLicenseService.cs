@@ -6,6 +6,20 @@ using System.Text.Json;
 
 namespace MoghimiVPN;
 
+public sealed class WindowsReleaseInfo
+{
+    public string VersionName { get; init; } = "";
+    public long VersionCode { get; init; }
+    public string ReleaseChannel { get; init; } = "stable";
+    public string InstallerUrl { get; init; } = "";
+    public string Sha256 { get; init; } = "";
+    public long FileSize { get; init; }
+    public string ReleaseNotes { get; init; } = "";
+    public bool IsMandatory { get; init; }
+    public string? MinimumSupportedVersion { get; init; }
+    public DateTimeOffset? PublishedAt { get; init; }
+}
+
 public sealed class WindowsUsageReport
 {
     public long UsedBytes { get; init; }
@@ -218,6 +232,119 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         }
     }
 
+
+    public async Task<WindowsReleaseInfo?> GetLatestReleaseAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var document = await PostAsync(new { action = "latest_release" }, null, cancellationToken);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("ok", out var ok) || !ok.GetBoolean())
+            throw new InvalidOperationException("اطلاعات نسخه ویندوز از سرور معتبر نیست.");
+        if (!root.TryGetProperty("available", out var available) || !available.GetBoolean())
+            return null;
+        if (!root.TryGetProperty("release", out var release) || release.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("اطلاعات انتشار ویندوز ناقص است.");
+
+        var info = new WindowsReleaseInfo
+        {
+            VersionName = ReadString(release, "version_name") ?? "",
+            VersionCode = ReadInt64(release, "version_code"),
+            ReleaseChannel = ReadString(release, "release_channel") ?? "stable",
+            InstallerUrl = ReadString(release, "installer_url") ?? "",
+            Sha256 = ReadString(release, "sha256") ?? "",
+            FileSize = ReadInt64(release, "file_size"),
+            ReleaseNotes = ReadString(release, "release_notes") ?? "",
+            IsMandatory = release.TryGetProperty("is_mandatory", out var mandatory) &&
+                mandatory.ValueKind == JsonValueKind.True,
+            MinimumSupportedVersion = ReadString(release, "minimum_supported_version"),
+            PublishedAt = ReadDate(release, "published_at")
+        };
+
+        if (string.IsNullOrWhiteSpace(info.VersionName) || info.VersionCode <= 0 ||
+            !Uri.TryCreate(info.InstallerUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(uri.Host, new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase) ||
+            !uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(info.Sha256, "^[a-fA-F0-9]{64}$") ||
+            info.FileSize <= 0 || info.FileSize > 1024L * 1024 * 1024)
+            throw new InvalidOperationException("نشانی، اندازه یا امضای Hash فایل نصب ویندوز معتبر نیست.");
+
+        return info;
+    }
+
+    public async Task<string> DownloadAndVerifyInstallerAsync(
+        WindowsReleaseInfo release,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Uri.TryCreate(release.InstallerUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(uri.Host, new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase) ||
+            !uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(release.Sha256, "^[a-fA-F0-9]{64}$") ||
+            release.FileSize <= 0 || release.FileSize > 1024L * 1024 * 1024)
+            throw new InvalidOperationException("آدرس یا مشخصات فایل نصب‌کننده مجاز نیست.");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
+        using var response = await Client.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var finalUri = response.RequestMessage?.RequestUri;
+        if (finalUri is null || finalUri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(finalUri.Host, uri.Host, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(finalUri.AbsolutePath, uri.AbsolutePath, StringComparison.Ordinal))
+            throw new InvalidOperationException("دانلود به میزبان یا مسیر دیگری هدایت شد و مسدود شد.");
+        response.EnsureSuccessStatusCode();
+
+        if (response.Content.Headers.ContentLength is long contentLength &&
+            (contentLength != release.FileSize || contentLength > 1024L * 1024 * 1024))
+            throw new InvalidOperationException("اندازه فایل دانلودی با اطلاعات انتشار یکسان نیست.");
+
+        var safeVersion = new string(release.VersionName
+            .Select(ch => char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_' ? ch : '_')
+            .ToArray());
+        var directory = Path.Combine(Path.GetTempPath(), "MoghimiVPN", "Updates");
+        Directory.CreateDirectory(directory);
+        var destination = Path.Combine(directory, $"MoghimiVPN-Windows-{safeVersion}-Setup.exe");
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".download";
+
+        try
+        {
+            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var output = new FileStream(
+                temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer = new byte[128 * 1024];
+            long total = 0;
+            int read;
+            while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                total += read;
+                if (total > release.FileSize || total > 1024L * 1024 * 1024)
+                    throw new InvalidOperationException("حجم فایل دانلودی بیش از مقدار ثبت‌شده است.");
+                hasher.AppendData(buffer, 0, read);
+                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                progress?.Report(release.FileSize > 0 ? (double)total / release.FileSize : 0);
+            }
+            await output.FlushAsync(cancellationToken);
+
+            var hash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+            if (total != release.FileSize ||
+                !CryptographicOperations.FixedTimeEquals(
+                    Convert.FromHexString(hash), Convert.FromHexString(release.Sha256.ToLowerInvariant())))
+                throw new InvalidOperationException("فایل نصب دانلود شد، اما SHA-256 آن با نسخه ثبت‌شده مطابقت ندارد.");
+
+            if (File.Exists(destination)) File.Delete(destination);
+            File.Move(temporary, destination);
+            return destination;
+        }
+        catch
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+            throw;
+        }
+    }
 
     public async Task<WindowsUsageReport> ReportUsageAsync(
         Guid sessionId,
