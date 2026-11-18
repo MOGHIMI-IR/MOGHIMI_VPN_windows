@@ -331,7 +331,7 @@ jobs:
             minimum_supported_version = $null
             published_at = (Get-Date).ToUniversalTime().ToString("o")
           } | ConvertTo-Json -Depth 8
-          $dbHeaders = @{ apikey = $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY; Authorization = "Bearer $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY"; Prefer = "resolution=merge-duplicates,return=representation" }
+          $dbHeaders = @{ apikey = $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY; Prefer = "resolution=merge-duplicates,return=representation"; "User-Agent" = "MoghimiVPN-ReleasePublisher/1.0" }
           Invoke-RestMethod -Method Post -Uri "$base/rest/v1/windows_app_releases?on_conflict=version_code" -Headers $dbHeaders -ContentType "application/json" -Body $payload | Out-Null
           Write-Host "Windows installer release metadata registered: $version ($sha)"
 
