@@ -49,6 +49,9 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         "MoghimiVPN",
         "windows-license.dpapi");
     private PersistedAuth _auth;
+    private readonly SemaphoreSlim _statusGate = new(1, 1);
+    private WindowsLicenseStatus? _cachedStatus;
+    private DateTimeOffset _cachedStatusAt;
 
     public string? DeviceToken => _auth.DeviceToken;
     public bool HasActivation => !string.IsNullOrWhiteSpace(_auth.DeviceToken);
@@ -141,6 +144,9 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
                 {
                     "device_not_registered" => "این دستگاه فعال‌سازی معتبر ندارد؛ کد فعال‌سازی را دوباره ثبت کن.",
                     "subscription_inactive" => "اشتراک ویندوز فعال نیست یا اعتبار آن به پایان رسیده است.",
+                    "quota_exhausted" => "حجم اشتراک ویندوز تمام شده است.",
+                    "stale_or_non_monotonic_usage" => "گزارش مصرف تکراری بود؛ گزارش بعدی مجدداً ارسال می‌شود.",
+                    "account_blocked" => "دسترسی این حساب مسدود شده است.",
                     _ => "ارتباط با سرویس ویندوز ناموفق بود. اتصال اینترنت را بررسی کن."
                 });
         }
