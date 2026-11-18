@@ -39,7 +39,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitializeComponent();
         _cloudSync = new CloudSync(_license);
         DataContext = this;
-        foreach (var p in ProfileStore.Instance.State.Profiles) Profiles.Add(p);
+        foreach (var p in ProfileStore.Instance.State.Profiles.Where(p => p.SubscriptionId != "moghimi-cloud")) Profiles.Add(p);
         foreach (var s in ProfileStore.Instance.State.Subscriptions) Subscriptions.Add(s);
         var active = Profiles.FirstOrDefault(p => p.Id == ProfileStore.Instance.State.ActiveProfileId) ?? Profiles.FirstOrDefault();
         if (active is not null) ProfilesList.SelectedItem = active;
@@ -398,6 +398,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        if (_selectedProfile.SubscriptionId == "moghimi-cloud")
+        {
+            MessageBox.Show("سرورهای اختصاصی Moghimi فقط قابل انتخاب و اتصال هستند و امکان ویرایش آن‌ها وجود ندارد.",
+                "سرور محافظت‌شده", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         var index = Profiles.IndexOf(_selectedProfile);
         if (index < 0) return;
@@ -441,6 +447,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (_selectedProfile.SubscriptionId == "moghimi-cloud")
+        {
+            MessageBox.Show("کپی و اشتراک‌گذاری کانفیگ‌های اختصاصی Moghimi غیرفعال است.",
+                "محدودیت امنیتی", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         try
         {
             var confirm = MessageBox.Show(
@@ -464,6 +477,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             MessageBox.Show("ابتدا یک کانفیگ انتخاب کن.", "خروجی QR",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_selectedProfile.SubscriptionId == "moghimi-cloud")
+        {
+            MessageBox.Show("ساخت QR از کانفیگ‌های اختصاصی Moghimi مجاز نیست.",
+                "محدودیت امنیتی", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -565,6 +585,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
         if (_selectedProfile is null) return;
+        if (_selectedProfile.SubscriptionId == "moghimi-cloud")
+        {
+            MessageBox.Show("سرورهای اختصاصی Moghimi از پنل مدیریت می‌شوند و از این بخش حذف نمی‌شوند.",
+                "سرور محافظت‌شده", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (_connection.IsRunning && _connectedProfile?.Id == _selectedProfile.Id)
         {
             MessageBox.Show("این کانفیگ در حال حاضر برای اتصال فعال استفاده می‌شود. ابتدا VPN/Proxy را قطع کن.",
@@ -933,7 +959,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SaveState()
     {
-        ProfileStore.Instance.State.Profiles = Profiles.ToList();
+        ProfileStore.Instance.State.Profiles = Profiles.Where(p => p.SubscriptionId != "moghimi-cloud").ToList();
         ProfileStore.Instance.State.Subscriptions = Subscriptions.ToList();
         ProfileStore.Instance.State.ActiveProfileId = _selectedProfile?.Id ?? (ProfilesList.SelectedItem as ProxyProfile)?.Id;
         ProfileStore.Instance.Save();
