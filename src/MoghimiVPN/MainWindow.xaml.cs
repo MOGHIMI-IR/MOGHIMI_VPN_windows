@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.Net.NetworkInformation;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
@@ -32,6 +33,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private ProxyProfile? _connectedProfile;
     private SubscriptionItem? _selectedSubscription;
     private bool _isConnected;
+    private bool _pendingEngineExit;
+    private bool _reconnectInProgress;
     private bool _windowsUpdateCheckRunning;
     private bool _mandatoryWindowsUpdate;
     private WindowsReleaseInfo? _availableWindowsRelease;
@@ -55,7 +58,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (active is not null) ProfilesList.SelectedItem = active;
         LoadSettings();
         UpdateDashboard();
-        _connection.EngineExited += (_, _) => Dispatcher.Invoke(() => SetDisconnected("اتصال توسط هسته متوقف شد"));
+        _connection.EngineExited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_connectionBusy)
+            {
+                _pendingEngineExit = true;
+                return;
+            }
+            _ = HandleUnexpectedEngineExitAsync();
+        }));
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
         _logTimer.Tick += (_, _) => { if (Pages.SelectedIndex == 4) RefreshLogs(); };
         _sessionTimer.Tick += (_, _) => UpdateSessionClock();
@@ -200,6 +211,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isConnected = false;
         _connectedProfile = null;
         _connectedSince = null;
+        _usageTimer.Stop();
+        _usageSessionId = Guid.Empty;
+        _usageSequence = 0;
         _sessionTimer.Stop();
         UpdateSessionClock();
         ConnectionStatus.Text = message;
@@ -326,6 +340,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             AppendLog($"Starting selected profile only: {chosen.Name} ({chosen.Protocol})");
             await _connection.StartAsync(chosen, ProfileStore.Instance.State.Settings, token);
+            if (!_connection.IsRunning)
+                throw new InvalidOperationException("هسته اتصال بلافاصله پس از راه‌اندازی متوقف شد.");
             _connectedProfile = chosen;
             _connectedSince = DateTimeOffset.Now;
             if (chosen.SubscriptionId == "moghimi-cloud")
@@ -374,6 +390,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             StopOrbAnimation();
             ConnectButton.IsEnabled = true;
             UpdateDashboard();
+            if (_pendingEngineExit && !_closeAfterBusyOperation && !_closeAfterDisconnect)
+            {
+                _pendingEngineExit = false;
+                if (_isConnected)
+                    Dispatcher.BeginInvoke(new Action(() => _ = HandleUnexpectedEngineExitAsync()));
+            }
             if (_closeAfterBusyOperation)
             {
                 _closeAfterBusyOperation = false;
@@ -1238,7 +1260,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task ReportWindowsUsageAsync(bool silent)
     {
         if (_connectedProfile?.SubscriptionId != "moghimi-cloud" ||
-            _usageSessionId == Guid.Empty || !_connection.IsRunning)
+            _usageSessionId == Guid.Empty)
             return;
 
         try
@@ -1274,6 +1296,122 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (!silent)
                 MessageBox.Show("ثبت مصرف انجام نشد؛ برنامه در گزارش بعدی دوباره تلاش می‌کند.",
                     "گزارش مصرف", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private async Task HandleUnexpectedEngineExitAsync()
+    {
+        if (_reconnectInProgress || _connectionBusy || !_isConnected || _connectedProfile is null ||
+            _closeAfterDisconnect || _closeAfterBusyOperation)
+            return;
+
+        _reconnectInProgress = true;
+        _connectionBusy = true;
+        var profile = _connectedProfile;
+        var settings = ProfileStore.Instance.State.Settings;
+        _usageTimer.Stop();
+        ConnectionStatus.Text = "ارتباط قطع شد · در حال بازیابی";
+        HeaderStatus.Text = "تلاش برای اتصال مجدد";
+        ProbeStatus.Text = "در حال بررسی شبکه و اشتراک…";
+        ConnectButton.IsEnabled = false;
+
+        var retryAgain = false;
+        try
+        {
+            // Flush the final local counters before the disconnected state clears them.
+            await ReportWindowsUsageAsync(silent: true);
+            SetDisconnected("ارتباط ناپایدار شد");
+            ProbeProgress.Visibility = Visibility.Visible;
+            ProbeProgress.IsIndeterminate = true;
+            StartOrbAnimation();
+
+            var retryDelays = new[] { 1000, 2000, 4000 };
+            Exception? lastError = null;
+            for (var attempt = 0; attempt < retryDelays.Length; attempt++)
+            {
+                await Task.Delay(retryDelays[attempt]);
+                if (_closeAfterDisconnect || _closeAfterBusyOperation) break;
+
+                if (!NetworkInterface.GetIsNetworkAvailable())
+                {
+                    lastError = new InvalidOperationException("شبکه در دسترس نیست.");
+                    AppendLog($"Auto-reconnect attempt {attempt + 1}: no available network interface.");
+                    continue;
+                }
+
+                try
+                {
+                    if (string.Equals(profile.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
+                    {
+                        var license = await _license.GetStatusAsync(forceRefresh: true);
+                        if (!license.Active)
+                            throw new InvalidOperationException("اشتراک ویندوز فعال نیست یا حجم آن تمام شده است.");
+                    }
+
+                    await _connection.StartAsync(profile, settings);
+                    if (!_connection.IsRunning)
+                        throw new InvalidOperationException("هسته پس از تلاش مجدد متوقف شد.");
+
+                    _connectedProfile = profile;
+                    _selectedProfile = profile;
+                    ProfilesList.SelectedItem = profile;
+                    _connectedSince = DateTimeOffset.Now;
+                    _isConnected = true;
+                    if (string.Equals(profile.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
+                    {
+                        _usageSessionId = Guid.NewGuid();
+                        _usageSequence = 0;
+                        _usageTimer.Start();
+                    }
+                    _sessionTimer.Start();
+                    UpdateSessionClock();
+
+                    ConnectionStatus.Text = settings.ConnectionMode == "TUN"
+                        ? "VPN فعال · اتصال بازیابی شد"
+                        : "Proxy فعال · اتصال بازیابی شد";
+                    HeaderStatus.Text = "متصل";
+                    StatusDot.Fill = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(80, 224, 181));
+                    ProbeStatus.Text = $"اتصال بازیابی شد · {profile.Name}";
+                    AppendLog($"Auto-reconnect succeeded on attempt {attempt + 1}.");
+                    SaveState();
+                    return;
+                }
+                catch (Exception error)
+                {
+                    lastError = error;
+                    AppendLog($"Auto-reconnect attempt {attempt + 1} failed: {error.GetType().Name}");
+                    if (_connection.IsRunning)
+                    {
+                        try { await _connection.StopAsync(); } catch { }
+                    }
+                }
+            }
+
+            SetDisconnected("اتصال بازیابی نشد؛ دوباره تلاش کن");
+            ProbeStatus.Text = lastError is null
+                ? "اتصال اینترنت را بررسی کن و دوباره وصل شو."
+                : "تلاش مجدد ناموفق بود؛ سرور یا اینترنت را بررسی کن.";
+            AppendLog("Auto-reconnect exhausted its bounded retry attempts.");
+        }
+        catch (Exception error)
+        {
+            SetDisconnected("اتصال بازیابی نشد");
+            AppendLog("Auto-reconnect handler failed: " + error.GetType().Name);
+        }
+        finally
+        {
+            _connectionBusy = false;
+            _reconnectInProgress = false;
+            retryAgain = _pendingEngineExit && _isConnected && !_closeAfterDisconnect;
+            _pendingEngineExit = false;
+            ProbeProgress.IsIndeterminate = false;
+            ProbeProgress.Visibility = Visibility.Collapsed;
+            StopOrbAnimation();
+            ConnectButton.IsEnabled = true;
+            UpdateDashboard();
+            if (retryAgain)
+                Dispatcher.BeginInvoke(new Action(() => _ = HandleUnexpectedEngineExitAsync()));
         }
     }
 
