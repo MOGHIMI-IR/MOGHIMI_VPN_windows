@@ -4,10 +4,10 @@
 - نسخه: **1.0.1 Beta 1**
 - معماری: Windows x64
 - فایل: `MoghimiVPN-Setup-x64.exe` (فقط نصب‌کننده؛ بدون Portable)
-- اندازه: **94,696,276 بایت**
-- SHA-256: `3b7b4fc60cc48059dbf3c30262350e7722b3d91ce1b23b129f287def6ebde632`
+- اندازه: **94,711,109 بایت**
+- SHA-256: `16bedca60fc5650033396ad7c2ab7521392f18ef6388d703b14865f44dba6cf8`
 - [دانلود مستقیم Setup](https://github.com/MOGHIMI-IR/MOGHIMI_VPN_windows/releases/download/windows-v1.0.1-beta.1/MoghimiVPN-Setup-x64.exe)
-- [گزارش CI ساخت، اجرای اولیه، نصب و Uninstall](https://github.com/MOGHIMI-IR/MOGHIMI_VPN_windows/actions/runs/44335518638)
+- [گزارش CI ساخت، اجرای اولیه، نصب و Uninstall](https://github.com/MOGHIMI-IR/MOGHIMI_VPN_windows/actions/runs/44338986232)
 - Installer هنوز Authenticode امضای ناشر ندارد؛ ممکن است Windows SmartScreen هشدار Unknown Publisher بدهد. Defender را خاموش نکن.
 
 کلاینت دسکتاپ ویندوز مقیمی؛ پروژه‌ای مستقل از نسخه‌های Android و iOS.
