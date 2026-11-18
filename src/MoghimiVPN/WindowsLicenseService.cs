@@ -6,6 +6,13 @@ using System.Text.Json;
 
 namespace MoghimiVPN;
 
+public sealed class WindowsUsageReport
+{
+    public long UsedBytes { get; init; }
+    public long RemainingBytes { get; init; }
+    public DateTimeOffset? ExpiresAt { get; init; }
+}
+
 public sealed class WindowsLicenseStatus
 {
     public bool Active { get; init; }
@@ -205,6 +212,61 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         }
     }
 
+
+    public async Task<WindowsUsageReport> ReportUsageAsync(
+        Guid sessionId,
+        long sequence,
+        long downloadBytes,
+        long uploadBytes,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasActivation) throw new InvalidOperationException("دستگاه ویندوز فعال‌سازی نشده است.");
+        if (sessionId == Guid.Empty || sequence < 1 || downloadBytes < 0 || uploadBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(sequence), "گزارش مصرف معتبر نیست.");
+
+        using var document = await PostAsync(new
+        {
+            action = "usage",
+            session_id = sessionId.ToString(),
+            sequence,
+            rx_bytes = downloadBytes,
+            tx_bytes = uploadBytes
+        }, DeviceToken, cancellationToken);
+
+        var root = document.RootElement;
+        if (!root.TryGetProperty("ok", out var ok) || !ok.GetBoolean())
+        {
+            var code = ReadString(root, "code") ?? "usage_report_failed";
+            throw new InvalidOperationException(code switch
+            {
+                "quota_exhausted" => "حجم اشتراک ویندوز تمام شده است.",
+                "subscription_inactive" => "اشتراک ویندوز فعال نیست.",
+                "stale_or_non_monotonic_usage" => "گزارش مصرف تکراری بود و دوباره ارسال می‌شود.",
+                _ => "ثبت مصرف اشتراک موقتاً انجام نشد."
+            });
+        }
+
+        var result = new WindowsUsageReport
+        {
+            UsedBytes = ReadInt64(root, "used_bytes"),
+            RemainingBytes = ReadInt64(root, "remaining_bytes"),
+            ExpiresAt = ReadDate(root, "expires_at")
+        };
+        if (_cachedStatus is not null)
+        {
+            _cachedStatus = new WindowsLicenseStatus
+            {
+                Active = result.RemainingBytes > 0 && (result.ExpiresAt is null || result.ExpiresAt > DateTimeOffset.UtcNow),
+                GrantedBytes = _cachedStatus.GrantedBytes,
+                UsedBytes = result.UsedBytes,
+                RemainingBytes = result.RemainingBytes,
+                ExpiresAt = result.ExpiresAt ?? _cachedStatus.ExpiresAt,
+                Status = result.RemainingBytes <= 0 ? "exhausted" : "active"
+            };
+            _cachedStatusAt = DateTimeOffset.UtcNow;
+        }
+        return result;
+    }
 
     public async Task<List<ProxyProfile>> FetchMoghimiCloudProfilesAsync(
         CancellationToken cancellationToken = default)
