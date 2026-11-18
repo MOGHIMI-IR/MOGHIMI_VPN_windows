@@ -14,8 +14,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly WindowsLicenseService _license = new();
     private readonly CloudSync _cloudSync;
     private readonly SubscriptionService _subscriptions = new();
-    private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(2) };
-    private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromHours(6) };
+    private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromMinutes(15) };
     private readonly DispatcherTimer _sessionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private DateTimeOffset? _connectedSince;
     private bool _cloudSyncRunning;
@@ -39,15 +39,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitializeComponent();
         _cloudSync = new CloudSync(_license);
         DataContext = this;
-        foreach (var p in ProfileStore.Instance.State.Profiles.Where(p => p.SubscriptionId != "moghimi-cloud")) Profiles.Add(p);
+        ProfileStore.Instance.State.Profiles = ProfileStore.Instance.State.Profiles
+            .Where(p => p.SubscriptionId != "moghimi-cloud")
+            .ToList();
+        foreach (var p in ProfileStore.Instance.State.Profiles) Profiles.Add(p);
         foreach (var s in ProfileStore.Instance.State.Subscriptions) Subscriptions.Add(s);
+        ProfileStore.Instance.Save();
         var active = Profiles.FirstOrDefault(p => p.Id == ProfileStore.Instance.State.ActiveProfileId) ?? Profiles.FirstOrDefault();
         if (active is not null) ProfilesList.SelectedItem = active;
         LoadSettings();
         UpdateDashboard();
         _connection.EngineExited += (_, _) => Dispatcher.Invoke(() => SetDisconnected("اتصال توسط هسته متوقف شد"));
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
-        _logTimer.Tick += (_, _) => RefreshLogs();
+        _logTimer.Tick += (_, _) => { if (Pages.SelectedIndex == 4) RefreshLogs(); };
         _sessionTimer.Tick += (_, _) => UpdateSessionClock();
         var startupSmokeTest = Environment.GetCommandLineArgs().Any(argument =>
             string.Equals(argument, "--startup-smoke-test", StringComparison.OrdinalIgnoreCase));
@@ -133,6 +137,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _selectedProfile = ProfilesList.SelectedItem as ProxyProfile;
+        ProfileStore.Instance.State.Profiles = Profiles
+            .Where(p => p.SubscriptionId != "moghimi-cloud")
+            .ToList();
         if (_selectedProfile is not null)
             ProfileStore.Instance.State.ActiveProfileId = _selectedProfile.Id;
         UpdateDashboard();
