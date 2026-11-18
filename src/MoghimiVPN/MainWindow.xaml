@@ -88,9 +88,9 @@
                     <Border Width="70" Height="70" CornerRadius="22" Background="#202B50" BorderBrush="#647BCE" BorderThickness="1" HorizontalAlignment="Right" Margin="0,8,0,15">
                         <Grid><Image Source="pack://application:,,,/Assets/moghimi-vpn-icon.png" Stretch="Uniform" Margin="8"/></Grid>
                     </Border>
-                    <TextBlock Text="MOGHIMI VPN" FontSize="21" FontWeight="Black" Foreground="White"/>
-                    <TextBlock Text="SECURE CONNECTION  /  WINDOWS" FontSize="9" Foreground="#93A3C6" Margin="0,4,0,30"/>
-                    <TextBlock Text="فضای کاری" Foreground="#7F91B5" FontSize="12" Margin="4,0,0,9"/>
+                    <TextBlock Text="MOGHIMI VPN" FontSize="22" FontWeight="Black" Foreground="White"/>
+                    <TextBlock Text="SECURE CONNECTION  /  WINDOWS" FontSize="11" Foreground="#93A3C6" Margin="0,4,0,30"/>
+                    <TextBlock Text="فضای کاری" Foreground="#7F91B5" FontSize="14" Margin="4,0,0,9"/>
                     <Button Style="{StaticResource NavButton}" Click="HomeNav_Click" Content="⌂    خانه"/>
                     <Button Style="{StaticResource NavButton}" Click="ProfilesNav_Click" Content="◈    کانفیگ‌ها"/>
                     <Button Style="{StaticResource NavButton}" Click="SubscriptionsNav_Click" Content="⟳    اشتراک‌ها"/>
@@ -99,8 +99,8 @@
                 </StackPanel>
                 <Border DockPanel.Dock="Bottom" Background="#1A2440" BorderBrush="#34466E" BorderThickness="1" CornerRadius="16" Padding="13" Margin="0,20,0,4">
                     <StackPanel>
-                        <TextBlock Text="حریم خصوصی" FontWeight="SemiBold" FontSize="12"/>
-                        <TextBlock Text="بدون ردیابی، تبلیغات یا ورود به حساب ویندوز" TextWrapping="Wrap" Foreground="#9BAAC6" FontSize="10" Margin="0,5,0,0"/>
+                        <TextBlock Text="حریم خصوصی" FontWeight="SemiBold" FontSize="14"/>
+                        <TextBlock Text="بدون ردیابی، تبلیغات یا ورود به حساب ویندوز" TextWrapping="Wrap" Foreground="#9BAAC6" FontSize="12" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Border>
             </DockPanel>
@@ -113,13 +113,13 @@
             </Grid.RowDefinitions>
             <Grid Grid.Row="0">
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="PageTitle" Text="داشبورد اتصال" FontSize="26" FontWeight="Bold"/>
-                    <TextBlock x:Name="PageDescription" Text="وضعیت اتصال و سرور فعال" Foreground="#9BAAC6" FontSize="12" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="PageTitle" Text="داشبورد اتصال" FontSize="28" FontWeight="Bold"/>
+                    <TextBlock x:Name="PageDescription" Text="وضعیت اتصال و سرور فعال" Foreground="#9BAAC6" FontSize="14" Margin="0,4,0,0"/>
                 </StackPanel>
                 <Border HorizontalAlignment="Left" VerticalAlignment="Center" Background="#16243A" BorderBrush="#3B5C8C" BorderThickness="1" CornerRadius="20" Padding="12,7">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="#E7A83E" Margin="0,0,8,0"/>
-                        <TextBlock x:Name="HeaderStatus" Text="آماده اتصال" FontSize="11" Foreground="#CFD7E2"/>
+                        <TextBlock x:Name="HeaderStatus" Text="آماده اتصال" FontSize="13" Foreground="#CFD7E2"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -137,8 +137,8 @@
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="MOGHIMI  /  PRIVATE NETWORK" FontSize="10" Foreground="#A5B5DF"/>
-                                    <TextBlock Text="یک اتصال امن، با انتخاب خودت" FontSize="24" FontWeight="Bold" Margin="0,8,0,0"/>
+                                    <TextBlock Text="MOGHIMI  /  PRIVATE NETWORK" FontSize="12" Foreground="#A5B5DF"/>
+                                    <TextBlock Text="یک اتصال امن، با انتخاب خودت" FontSize="26" FontWeight="Bold" Margin="0,8,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Button x:Name="ConnectButton" Click="ConnectButton_Click" Width="196" Height="196" Padding="0" Background="Transparent" BorderThickness="0">
@@ -165,8 +165,8 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,15,0,4"/>
-                                    <TextBlock x:Name="ProbeStatus" Text="سرور انتخاب‌شده آماده اتصال" Foreground="#8996A9" FontSize="11" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="21" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,15,0,4"/>
+                                    <TextBlock x:Name="ProbeStatus" Text="سرور انتخاب‌شده آماده اتصال" Foreground="#8996A9" FontSize="13" HorizontalAlignment="Center"/>
                                     <ProgressBar x:Name="ProbeProgress" Width="230" Height="4" Margin="0,9,0,0" Maximum="100" Value="0" Visibility="Collapsed" Background="#222B38" Foreground="#E63946" BorderThickness="0"/>
                                 </StackPanel>
                                 <Grid Grid.Row="2">
@@ -181,20 +181,20 @@
                                 <TextBlock Text="سرور انتخاب‌شده" Style="{StaticResource SectionTitle}"/>
                                 <Border Background="#1C2430" BorderBrush="#2D394B" BorderThickness="1" CornerRadius="13" Padding="14">
                                     <StackPanel>
-                                        <TextBlock x:Name="SelectedProfileName" Text="هنوز سروری انتخاب نشده" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                        <TextBlock x:Name="SelectedProfileEndpoint" Text="از بخش کانفیگ‌ها یک سرور اضافه کن" Foreground="#9BAAC6" FontSize="11" Margin="0,7,0,0" TextWrapping="Wrap"/>
-                                        <TextBlock x:Name="SelectedProfileLatency" Text="— ms" Foreground="#64DDBB" FontSize="12" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                                        <TextBlock x:Name="SelectedProfileName" Text="هنوز سروری انتخاب نشده" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="SelectedProfileEndpoint" Text="از بخش کانفیگ‌ها یک سرور اضافه کن" Foreground="#9BAAC6" FontSize="13" Margin="0,7,0,0" TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="SelectedProfileLatency" Text="— ms" Foreground="#64DDBB" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
                                         <Border Background="#10151E" CornerRadius="9" Padding="10,8" Margin="0,12,0,0">
                                             <Grid>
-                                                <TextBlock Text="مدت اتصال" Foreground="#9BAAC6" FontSize="11" VerticalAlignment="Center"/>
-                                                <TextBlock x:Name="SessionUptime" Text="00:00:00" Foreground="#9BAAC6" FontSize="13" FontWeight="SemiBold" FontFamily="{StaticResource AppFont}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                <TextBlock Text="مدت اتصال" Foreground="#9BAAC6" FontSize="13" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="SessionUptime" Text="00:00:00" Foreground="#9BAAC6" FontSize="14" FontWeight="SemiBold" FontFamily="{StaticResource AppFont}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
                                             </Grid>
                                         </Border>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock Text="نکته اتصال" FontWeight="SemiBold" Margin="0,20,0,6"/>
-                                <TextBlock Text="در حالت TUN، ویندوز برای ساخت رابط شبکه یک‌بار پنجره رسمی UAC را نشان می‌دهد. لغو آن به معنی لغو اتصال است." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="11" LineHeight="18"/>
-                                <TextBlock Text="این برنامه در شروع ویندوز خودکار وصل نمی‌شود." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="11" Margin="0,11,0,0"/>
+                                <TextBlock Text="در حالت TUN، ویندوز برای ساخت رابط شبکه یک‌بار پنجره رسمی UAC را نشان می‌دهد. لغو آن به معنی لغو اتصال است." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="14" LineHeight="22"/>
+                                <TextBlock Text="این برنامه در شروع ویندوز خودکار وصل نمی‌شود." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="13" Margin="0,11,0,0"/>
                             </StackPanel>
                         </Border>
 
@@ -202,23 +202,23 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="شبکه" Foreground="#8996A9" FontSize="11"/>
-                                    <TextBlock Text="VPN / Proxy" FontSize="15" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="شبکه" Foreground="#8996A9" FontSize="13"/>
+                                    <TextBlock Text="VPN / Proxy" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="DNS" Foreground="#8996A9" FontSize="11"/>
-                                    <TextBlock x:Name="DnsSummary" Text="1.1.1.1" FontSize="15" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="DNS" Foreground="#8996A9" FontSize="13"/>
+                                    <TextBlock x:Name="DnsSummary" Text="1.1.1.1" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="پروفایل‌ها" Foreground="#8996A9" FontSize="11"/>
-                                    <TextBlock x:Name="ProfileCountSummary" Text="0" FontSize="15" FontWeight="SemiBold" Margin="0,7,0,0"/>
+                                    <TextBlock Text="پروفایل‌ها" Foreground="#8996A9" FontSize="13"/>
+                                    <TextBlock x:Name="ProfileCountSummary" Text="0" FontSize="16" FontWeight="SemiBold" Margin="0,7,0,0"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
                         <Border Grid.Column="1" Grid.Row="1" Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="وضعیت امنیتی" FontWeight="SemiBold"/>
-                                <TextBlock Text="بدون سرویس مخفی، بدون استثنای آنتی‌ویروس و بدون تغییر تنظیمات Defender" Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="11" Margin="0,9,0,0" LineHeight="17"/>
+                                <TextBlock Text="بدون سرویس مخفی، بدون استثنای آنتی‌ویروس و بدون تغییر تنظیمات Defender" Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="13" Margin="0,9,0,0" LineHeight="17"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -230,8 +230,8 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12" Padding="15">
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right">
-                                    <TextBlock Text="مدیریت سرورها" FontSize="17" FontWeight="SemiBold"/>
-                                    <TextBlock Text="افزودن لینک، واردکردن فایل و تست تأخیر" Foreground="#9BAAC6" FontSize="11" Margin="0,4,0,0"/>
+                                    <TextBlock Text="مدیریت سرورها" FontSize="18" FontWeight="SemiBold"/>
+                                    <TextBlock Text="افزودن لینک، واردکردن فایل و تست تأخیر" Foreground="#9BAAC6" FontSize="13" Margin="0,4,0,0"/>
                                 </StackPanel>
                                 <WrapPanel HorizontalAlignment="Left">
                                     <Button Click="ManualProfile_Click" Margin="4,0" Content="+ پروفایل دستی"/>
@@ -252,7 +252,7 @@
                                 <GroupStyle>
                                     <GroupStyle.HeaderTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" Foreground="#E6A0A6" FontSize="12" FontWeight="SemiBold" Margin="4,12,4,6"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="#E6A0A6" FontSize="14" FontWeight="SemiBold" Margin="4,12,4,6"/>
                                         </DataTemplate>
                                     </GroupStyle.HeaderTemplate>
                                 </GroupStyle>
@@ -262,11 +262,11 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Subtitle}" Foreground="#9BAAC6" FontSize="11" Margin="0,5,0,0"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Subtitle}" Foreground="#9BAAC6" FontSize="13" Margin="0,5,0,0"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                            <TextBlock Text="{Binding LatencyMs, StringFormat={}{0} ms}" Foreground="#64DDBB" FontSize="12" HorizontalAlignment="Left"/>
+                                            <TextBlock Text="{Binding LatencyMs, StringFormat={}{0} ms}" Foreground="#64DDBB" FontSize="14" HorizontalAlignment="Left"/>
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>
@@ -281,7 +281,7 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="اشتراک‌ها و کانفیگ‌های سایت" Style="{StaticResource SectionTitle}"/>
-                                <TextBlock Text="اشتراک اینترنتی را اضافه و در زمان دلخواه به‌روزرسانی کن. همگام‌سازی سایت مقیمی فقط آیتم‌های فعال را دریافت می‌کند." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,12"/>
+                                <TextBlock Text="اشتراک اینترنتی را اضافه و در زمان دلخواه به‌روزرسانی کن. همگام‌سازی سایت مقیمی فقط آیتم‌های فعال را دریافت می‌کند." Foreground="#A5B2CB" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,12"/>
                                 <WrapPanel>
                                     <Button Click="AddSubscription_Click" Content="+ افزودن اشتراک" Margin="4,0"/>
                                     <Button Click="RefreshSubscription_Click" Content="به‌روزرسانی اشتراک انتخاب‌شده" Margin="4,0"/>
@@ -294,9 +294,9 @@
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel>
-                                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding Url}" Foreground="#9BAAC6" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,5,0,0"/>
-                                        <TextBlock Text="{Binding LastStatus}" Foreground="#64DDBB" FontSize="10" Margin="0,5,0,0"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Url}" Foreground="#9BAAC6" FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,5,0,0"/>
+                                        <TextBlock Text="{Binding LastStatus}" Foreground="#64DDBB" FontSize="12" Margin="0,5,0,0"/>
                                     </StackPanel>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
@@ -310,8 +310,8 @@
                             <Border Style="{StaticResource Card}" Background="#302A2742" BorderBrush="#9C8556" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="فعال‌سازی اشتراک ویندوز" Style="{StaticResource SectionTitle}" Foreground="#F4D88B"/>
-                                    <TextBlock Text="کد خرید ویندوز را از بات تلگرام دریافت کن و اینجا ثبت کن. اطلاعات فعال‌سازی با DPAPI برای حساب فعلی ویندوز رمزگذاری می‌شود." Foreground="#C9C3D9" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                                    <TextBlock x:Name="LicenseStatusText" Text="در حال بررسی وضعیت اشتراک…" Foreground="#E8D9A8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                    <TextBlock Text="کد خرید ویندوز را از بات تلگرام دریافت کن و اینجا ثبت کن. اطلاعات فعال‌سازی با DPAPI برای حساب فعلی ویندوز رمزگذاری می‌شود." Foreground="#C9C3D9" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <TextBlock x:Name="LicenseStatusText" Text="در حال بررسی وضعیت اشتراک…" Foreground="#E8D9A8" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <WrapPanel>
                                         <Button x:Name="ActivateWindowsButton" Click="ActivateWindows_Click" Content="ثبت کد فعال‌سازی" Margin="4,0" Background="#6D55B8" BorderBrush="#B69AF2"/>
                                         <Button Click="RefreshWindowsLicense_Click" Content="بررسی مجدد اشتراک" Margin="4,0" Background="#4A432B" BorderBrush="#B69A53"/>
@@ -321,7 +321,7 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="حالت اتصال" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="VPN Mode ترافیک دستگاه را از تونل مجازی عبور می‌دهد و برای فعال‌سازی UAC ویندوز می‌خواهد. Proxy Mode فقط برنامه‌هایی را پوشش می‌دهد که از پراکسی سیستم پیروی می‌کنند؛ تنظیم قبلی پس از قطع اتصال بازگردانده می‌شود." Foreground="#A5B2CB" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                    <TextBlock Text="VPN Mode ترافیک دستگاه را از تونل مجازی عبور می‌دهد و برای فعال‌سازی UAC ویندوز می‌خواهد. Proxy Mode فقط برنامه‌هایی را پوشش می‌دهد که از پراکسی سیستم پیروی می‌کنند؛ تنظیم قبلی پس از قطع اتصال بازگردانده می‌شود." Foreground="#A5B2CB" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <ComboBox x:Name="ConnectionModeCombo" Width="220" HorizontalAlignment="Right" SelectedIndex="0">
                                         <ComboBoxItem Content="VPN Mode — کل سیستم" Tag="TUN"/>
                                         <ComboBoxItem Content="Proxy Mode — برنامه‌های سازگار" Tag="System Proxy"/>
@@ -331,7 +331,7 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="DNS و مسیریابی" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="DNS سرور" Foreground="#A5B2CB" FontSize="11" Margin="0,0,0,6"/>
+                                    <TextBlock Text="DNS سرور" Foreground="#A5B2CB" FontSize="13" Margin="0,0,0,6"/>
                                     <TextBox x:Name="DnsTextBox" Width="280" HorizontalAlignment="Right" Text="1.1.1.1"/>
                                     <CheckBox x:Name="BlockAdsCheck" Content="مسدودسازی دامنه‌های تبلیغاتی رایج" IsChecked="True" Margin="0,15,0,0"/>
                                     <CheckBox x:Name="BypassLanCheck" Content="عبور مستقیم شبکه‌های خصوصی و LAN" IsChecked="True"/>
@@ -340,10 +340,10 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="دسترسی‌ها و شفافیت" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="• VPN Mode: دسترسی مدیر فقط هنگام اتصال و از طریق UAC رسمی ویندوز." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
-                                    <TextBlock Text="• Proxy Mode: تنظیمات کاربر فعلی؛ مقدار قبلی هنگام قطع اتصال بازگردانده می‌شود." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
-                                    <TextBlock Text="• برنامه رمز ویندوز، مرورگر، مخاطبان یا اطلاعات حساب را نمی‌خواند." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
-                                    <TextBlock Text="• Defender خاموش نمی‌شود و هیچ استثنایی به آنتی‌ویروس اضافه نمی‌شود." Foreground="#C2CBD7" FontSize="12" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• VPN Mode: دسترسی مدیر فقط هنگام اتصال و از طریق UAC رسمی ویندوز." Foreground="#C2CBD7" FontSize="14" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• Proxy Mode: تنظیمات کاربر فعلی؛ مقدار قبلی هنگام قطع اتصال بازگردانده می‌شود." Foreground="#C2CBD7" FontSize="14" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• برنامه رمز ویندوز، مرورگر، مخاطبان یا اطلاعات حساب را نمی‌خواند." Foreground="#C2CBD7" FontSize="14" Margin="0,4" TextWrapping="Wrap"/>
+                                    <TextBlock Text="• Defender خاموش نمی‌شود و هیچ استثنایی به آنتی‌ویروس اضافه نمی‌شود." Foreground="#C2CBD7" FontSize="14" Margin="0,4" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                             <Button Click="SaveSettings_Click" Content="ذخیره تنظیمات" Style="{StaticResource AccentButton}" HorizontalAlignment="Right" Width="180"/>
@@ -360,7 +360,7 @@
                         </DockPanel>
                         <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True"
                                  TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto" FontFamily="{StaticResource AppFont}" FontSize="11"
+                                 HorizontalScrollBarVisibility="Auto" FontFamily="{StaticResource AppFont}" FontSize="13"
                                  Background="#090B10" Padding="16"/>
                     </Grid>
                 </TabItem>
