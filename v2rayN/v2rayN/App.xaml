@@ -179,6 +179,18 @@
                 BasedOn="{StaticResource MaterialDesignDataGrid}"
                 TargetType="{x:Type DataGrid}">
                 <Setter Property="FontSize" Value="{DynamicResource StdFontSize}" />
+                <Setter Property="Background" Value="#11172A" />
+                <Setter Property="Foreground" Value="#F1EDFF" />
+                <Setter Property="BorderBrush" Value="#41496B" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="RowBackground" Value="#171E34" />
+                <Setter Property="AlternatingRowBackground" Value="#202741" />
+                <Setter Property="AlternationCount" Value="2" />
+                <Setter Property="RowHeight" Value="43" />
+                <Setter Property="ColumnHeaderHeight" Value="42" />
+                <Setter Property="GridLinesVisibility" Value="Horizontal" />
+                <Setter Property="HorizontalGridLinesBrush" Value="#303A57" />
+                <Setter Property="VerticalGridLinesBrush" Value="#161D30" />
             </Style>
             <Style
                 x:Key="DefTextBox"
@@ -255,7 +267,7 @@
                 <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
                 <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
                 <Setter Property="TextElement.Foreground" Value="{DynamicResource MaterialDesignBody}" />
-                <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
+                <Setter Property="Background" Value="#0B1020" />
                 <Setter Property="TextElement.FontFamily" Value="{x:Static conv:MaterialDesignFonts.MyFont}" />
                 <Setter Property="FontFamily" Value="{x:Static conv:MaterialDesignFonts.MyFont}" />
             </Style>

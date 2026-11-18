@@ -108,7 +108,7 @@
                 CanUserSortColumns="False"
                 EnableRowVirtualization="True"
                 Focusable="True"
-                GridLinesVisibility="All"
+                GridLinesVisibility="Horizontal"
                 HeadersVisibility="All"
                 IsReadOnly="True"
                 RowHeaderWidth="40"
@@ -263,19 +263,44 @@
                 </DataGrid.ContextMenu>
                 <DataGrid.Resources>
                     <Style BasedOn="{StaticResource MaterialDesignDataGridRow}" TargetType="DataGridRow">
+                        <Setter Property="Background" Value="#171E34" />
+                        <Setter Property="Foreground" Value="#EAE6F8" />
+                        <Setter Property="BorderBrush" Value="#313A57" />
+                        <Setter Property="BorderThickness" Value="0,0,0,1" />
                         <EventSetter Event="MouseDoubleClick" Handler="LstProfiles_MouseDoubleClick" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2A3150" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#3B3862" />
+                            </Trigger>
+                        </Style.Triggers>
                     </Style>
                     <Style BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}" TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#252C48" />
+                        <Setter Property="Foreground" Value="#F4EFFF" />
+                        <Setter Property="BorderBrush" Value="#434B6C" />
+                        <Setter Property="Padding" Value="10,7" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
                         <EventSetter Event="Click" Handler="LstProfiles_ColumnHeader_Click" />
                     </Style>
 
                     <Style BasedOn="{StaticResource MaterialDesignDataGridCell}" TargetType="DataGridCell">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="#EAE6F8" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Setter Property="Padding" Value="7,5" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
-                                <Setter Property="Foreground" Value="Black" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
+                                <Setter Property="Background" Value="#594D80B8" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="BorderBrush" Value="#887C9ED0" />
                             </DataTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#6B5A9C" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
                         </Style.Triggers>
                     </Style>
                 </DataGrid.Resources>

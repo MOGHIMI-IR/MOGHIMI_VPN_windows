@@ -416,7 +416,7 @@
                                                Foreground="#E8E2F5"
                                                FontSize="13"
                                                FontWeight="SemiBold" />
-                                    <Border HorizontalAlignment="Left"
+                                    <Border HorizontalAlignment="Right"
                                             Background="#493F967B"
                                             BorderBrush="#7B7CE1B7"
                                             BorderThickness="1"
@@ -436,7 +436,7 @@
                                                FontWeight="SemiBold" />
                                     <TextBlock x:Name="MoghimiPaidQuotaSummaryText"
                                                Text="حجم خریداری‌شده: —"
-                                               HorizontalAlignment="Left"
+                                               HorizontalAlignment="Right"
                                                Foreground="#EBCB83"
                                                FontSize="11"
                                                VerticalAlignment="Center" />
@@ -454,7 +454,8 @@
                                     <TextBlock x:Name="MoghimiQuotaMonthText"
                                                Text="بازنشانی ماهانه بر اساس UTC"
                                                Foreground="#B8B1CC"
-                                               FontSize="10" />
+                                               FontSize="10"
+                                               HorizontalAlignment="Right" />
                                     <TextBlock x:Name="MoghimiDeviceIdText"
                                                Text="DEVICE  /  —"
                                                Foreground="#C5BEDE"
@@ -487,7 +488,7 @@
                                                    FontSize="17"
                                                    FontWeight="SemiBold" />
                                     </StackPanel>
-                                    <StackPanel HorizontalAlignment="Left">
+                                    <StackPanel HorizontalAlignment="Right">
                                         <TextBlock Text="ارسال"
                                                    Foreground="#EBCB83"
                                                    FontSize="10" />
