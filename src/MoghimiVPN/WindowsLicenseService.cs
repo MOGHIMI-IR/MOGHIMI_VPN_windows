@@ -24,15 +24,30 @@ public sealed class WindowsUsageReport
 {
     public long UsedBytes { get; init; }
     public long RemainingBytes { get; init; }
+    public long FreeLimitBytes { get; init; }
+    public long FreeUsedBytes { get; init; }
+    public long FreeRemainingBytes { get; init; }
+    public long PaidGrantedBytes { get; init; }
+    public long PaidUsedBytes { get; init; }
+    public long PaidRemainingBytes { get; init; }
+    public string? FreeMonthStart { get; init; }
     public DateTimeOffset? ExpiresAt { get; init; }
 }
 
 public sealed class WindowsLicenseStatus
 {
     public bool Active { get; init; }
+    public long FreeLimitBytes { get; init; } = 7L * 1024 * 1024 * 1024;
+    public long FreeUsedBytes { get; init; }
+    public long FreeRemainingBytes { get; init; } = 7L * 1024 * 1024 * 1024;
+    public long PaidGrantedBytes { get; init; }
+    public long PaidUsedBytes { get; init; }
+    public long PaidRemainingBytes { get; init; }
+    public string? FreeMonthStart { get; init; }
     public long GrantedBytes { get; init; }
     public long UsedBytes { get; init; }
     public long RemainingBytes { get; init; }
+    public long TotalRemainingBytes => Math.Max(0, FreeRemainingBytes) + Math.Max(0, PaidRemainingBytes);
     public DateTimeOffset? ExpiresAt { get; init; }
     public string Status { get; init; } = "not_activated";
 }
@@ -95,6 +110,8 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
     {
         public string InstallationId { get; set; } = Guid.NewGuid().ToString();
         public string? DeviceToken { get; set; }
+        public string FreeDeviceToken { get; set; } =
+            Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
     }
 
     private readonly string _authPath = Path.Combine(
@@ -103,17 +120,23 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         "windows-license.dpapi");
     private PersistedAuth _auth;
     private readonly SemaphoreSlim _statusGate = new(1, 1);
+    private readonly SemaphoreSlim _freeRegistrationGate = new(1, 1);
+    private bool _freeRegistered;
     private WindowsLicenseStatus? _cachedStatus;
     private DateTimeOffset _cachedStatusAt;
 
     public string? DeviceToken => _auth.DeviceToken;
+    public string FreeDeviceToken => _auth.FreeDeviceToken;
     public bool HasActivation => !string.IsNullOrWhiteSpace(_auth.DeviceToken);
+    public bool HasFreeRegistration => !string.IsNullOrWhiteSpace(_auth.FreeDeviceToken);
 
     public WindowsLicenseService()
     {
         _auth = Load();
         if (string.IsNullOrWhiteSpace(_auth.InstallationId))
             _auth.InstallationId = Guid.NewGuid().ToString();
+        if (string.IsNullOrWhiteSpace(_auth.FreeDeviceToken) || _auth.FreeDeviceToken.Length != 64)
+            _auth.FreeDeviceToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         Save();
     }
 
@@ -206,6 +229,38 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         return document;
     }
 
+    public async Task EnsureFreeRegistrationAsync(CancellationToken cancellationToken = default)
+    {
+        if (_freeRegistered) return;
+        if (!HasFreeRegistration)
+            throw new InvalidOperationException("شناسه سهمیه رایگان ویندوز در دسترس نیست.");
+
+        await _freeRegistrationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_freeRegistered) return;
+            using var document = await PostAsync(new
+            {
+                action = "free_register",
+                installation_id = _auth.InstallationId
+            }, FreeDeviceToken, cancellationToken);
+
+            var root = document.RootElement;
+            if (!root.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
+            {
+                var code = ReadString(root, "code") ?? "device_registration_failed";
+                throw new InvalidOperationException(code == "device_blocked"
+                    ? "دسترسی این نصب ویندوز مسدود شده است."
+                    : "ثبت سهمیه مستقل ویندوز انجام نشد.");
+            }
+            _freeRegistered = true;
+        }
+        finally
+        {
+            _freeRegistrationGate.Release();
+        }
+    }
+
     public async Task<WindowsLicenseStatus> ActivateAsync(
         string activationCode,
         CancellationToken cancellationToken = default)
@@ -236,9 +291,7 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         CancellationToken cancellationToken = default,
         bool forceRefresh = false)
     {
-        if (!HasActivation)
-            return new WindowsLicenseStatus { Active = false, Status = "not_activated" };
-
+        await EnsureFreeRegistrationAsync(cancellationToken);
         if (!forceRefresh && _cachedStatus is not null &&
             DateTimeOffset.UtcNow - _cachedStatusAt < TimeSpan.FromSeconds(20))
             return _cachedStatus;
@@ -250,17 +303,8 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
                 DateTimeOffset.UtcNow - _cachedStatusAt < TimeSpan.FromSeconds(20))
                 return _cachedStatus;
 
-            using var document = await PostAsync(new { action = "status" }, DeviceToken, cancellationToken);
-            var root = document.RootElement;
-            var status = new WindowsLicenseStatus
-            {
-                Active = root.TryGetProperty("active", out var active) && active.GetBoolean(),
-                GrantedBytes = ReadInt64(root, "granted_bytes"),
-                UsedBytes = ReadInt64(root, "used_bytes"),
-                RemainingBytes = ReadInt64(root, "remaining_bytes"),
-                ExpiresAt = ReadDate(root, "expires_at"),
-                Status = ReadString(root, "status") ?? ReadString(root, "code") ?? "unknown"
-            };
+            using var document = await PostAsync(new { action = "free_status" }, FreeDeviceToken, cancellationToken);
+            var status = ParseWindowsStatus(document.RootElement);
             _cachedStatus = status;
             _cachedStatusAt = DateTimeOffset.UtcNow;
             return status;
@@ -271,6 +315,35 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         }
     }
 
+    private static WindowsLicenseStatus ParseWindowsStatus(JsonElement root)
+    {
+        var freeLimit = ReadInt64(root, "free_limit_bytes");
+        if (freeLimit <= 0) freeLimit = 7L * 1024 * 1024 * 1024;
+        var freeUsed = Math.Max(0, ReadInt64(root, "free_used_bytes"));
+        var freeRemaining = Math.Clamp(ReadInt64(root, "free_remaining_bytes"), 0, freeLimit);
+        var paidGranted = Math.Max(0, ReadInt64(root, "paid_granted_bytes"));
+        var paidUsed = Math.Max(0, ReadInt64(root, "paid_used_bytes"));
+        var paidRemaining = Math.Max(0, ReadInt64(root, "paid_remaining_bytes"));
+
+        return new WindowsLicenseStatus
+        {
+            Active = root.TryGetProperty("access_allowed", out var allowed) &&
+                allowed.ValueKind == JsonValueKind.True,
+            FreeLimitBytes = freeLimit,
+            FreeUsedBytes = freeUsed,
+            FreeRemainingBytes = freeRemaining,
+            PaidGrantedBytes = paidGranted,
+            PaidUsedBytes = paidUsed,
+            PaidRemainingBytes = paidRemaining,
+            FreeMonthStart = ReadString(root, "free_month_start"),
+            GrantedBytes = paidGranted,
+            UsedBytes = paidUsed,
+            RemainingBytes = paidRemaining,
+            ExpiresAt = ReadDate(root, "paid_expires_at"),
+            Status = ReadString(root, "status") ??
+                (freeRemaining + paidRemaining > 0 ? "active" : "exhausted")
+        };
+    }
 
     public async Task<WindowsReleaseInfo?> GetLatestReleaseAsync(
         CancellationToken cancellationToken = default)
@@ -386,61 +459,57 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         long uploadBytes,
         CancellationToken cancellationToken = default)
     {
-        if (!HasActivation) throw new InvalidOperationException("دستگاه ویندوز فعال‌سازی نشده است.");
+        await EnsureFreeRegistrationAsync(cancellationToken);
         if (sessionId == Guid.Empty || sequence < 1 || downloadBytes < 0 || uploadBytes < 0)
             throw new ArgumentOutOfRangeException(nameof(sequence), "گزارش مصرف معتبر نیست.");
 
         using var document = await PostAsync(new
         {
-            action = "usage",
+            action = "free_usage",
             session_id = sessionId.ToString(),
             sequence,
-            rx_bytes = downloadBytes,
-            tx_bytes = uploadBytes
-        }, DeviceToken, cancellationToken);
+            rx_total = downloadBytes,
+            tx_total = uploadBytes
+        }, FreeDeviceToken, cancellationToken);
 
         var root = document.RootElement;
-        if (!root.TryGetProperty("ok", out var ok) || !ok.GetBoolean())
+        if (!root.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
         {
             var code = ReadString(root, "code") ?? "usage_report_failed";
             throw new InvalidOperationException(code switch
             {
-                "quota_exhausted" => "حجم اشتراک ویندوز تمام شده است.",
-                "subscription_inactive" => "اشتراک ویندوز فعال نیست.",
-                "stale_or_non_monotonic_usage" => "گزارش مصرف تکراری بود و دوباره ارسال می‌شود.",
-                _ => "ثبت مصرف اشتراک موقتاً انجام نشد."
+                "device_not_registered" => "ثبت سهمیه ویندوز انجام نشده است؛ همگام‌سازی را دوباره انجام بده.",
+                "device_blocked" => "دسترسی این نصب ویندوز مسدود شده است.",
+                "sequence_gap" => "ترتیب گزارش مصرف نامعتبر بود؛ گزارش بعدی دوباره ارسال می‌شود.",
+                "counter_reset" => "شمارنده مصرف هسته اتصال بازنشانی شد؛ اتصال را یک‌بار قطع و وصل کن.",
+                "batch_too_large" => "بسته مصرف بزرگ‌تر از حد مجاز است؛ در حال ارسال مرحله‌ای.",
+                _ => "ثبت مصرف ویندوز موقتاً انجام نشد."
             });
         }
 
-        var result = new WindowsUsageReport
+        var status = ParseWindowsStatus(root);
+        _cachedStatus = status;
+        _cachedStatusAt = DateTimeOffset.UtcNow;
+        return new WindowsUsageReport
         {
-            UsedBytes = ReadInt64(root, "used_bytes"),
-            RemainingBytes = ReadInt64(root, "remaining_bytes"),
-            ExpiresAt = ReadDate(root, "expires_at")
+            FreeLimitBytes = status.FreeLimitBytes,
+            FreeUsedBytes = status.FreeUsedBytes,
+            FreeRemainingBytes = status.FreeRemainingBytes,
+            PaidGrantedBytes = status.PaidGrantedBytes,
+            PaidUsedBytes = status.PaidUsedBytes,
+            PaidRemainingBytes = status.PaidRemainingBytes,
+            FreeMonthStart = status.FreeMonthStart,
+            UsedBytes = status.FreeUsedBytes + status.PaidUsedBytes,
+            RemainingBytes = status.TotalRemainingBytes,
+            ExpiresAt = status.ExpiresAt
         };
-        if (_cachedStatus is not null)
-        {
-            _cachedStatus = new WindowsLicenseStatus
-            {
-                Active = result.RemainingBytes > 0 && (result.ExpiresAt is null || result.ExpiresAt > DateTimeOffset.UtcNow),
-                GrantedBytes = _cachedStatus.GrantedBytes,
-                UsedBytes = result.UsedBytes,
-                RemainingBytes = result.RemainingBytes,
-                ExpiresAt = result.ExpiresAt ?? _cachedStatus.ExpiresAt,
-                Status = result.RemainingBytes <= 0 ? "exhausted" : "active"
-            };
-            _cachedStatusAt = DateTimeOffset.UtcNow;
-        }
-        return result;
     }
 
     public async Task<List<ProxyProfile>> FetchMoghimiCloudProfilesAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!HasActivation)
-            throw new InvalidOperationException("برای دریافت سرورهای اختصاصی مقیمی، ابتدا کد فعال‌سازی ویندوز را ثبت کن.");
-
-        using var document = await PostAsync(new { action = "profiles" }, DeviceToken, cancellationToken);
+        await EnsureFreeRegistrationAsync(cancellationToken);
+        using var document = await PostAsync(new { action = "profiles" }, FreeDeviceToken, cancellationToken);
         var root = document.RootElement;
         if (!root.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("فهرست سرورهای ویندوز معتبر نیست.");
