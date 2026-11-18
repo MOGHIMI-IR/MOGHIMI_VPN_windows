@@ -297,6 +297,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish Windows Beta Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-v1.0.0-beta.1
+          target_commitish: main
+          name: Moghimi VPN for Windows 1.0.0 Beta 1
+          prerelease: true
+          generate_release_notes: true
+          overwrite_files: true
+          files: artifacts/MoghimiVPN-Setup-x64.exe
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
