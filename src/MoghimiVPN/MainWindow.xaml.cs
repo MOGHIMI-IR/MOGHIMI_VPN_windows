@@ -60,6 +60,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         UpdateDashboard();
         _connection.EngineExited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
         {
+            // Ignore a delayed exit notification if a later retry already started the engine.
+            if (_connection.IsRunning) return;
             if (_connectionBusy)
             {
                 _pendingEngineExit = true;
@@ -1301,8 +1303,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async Task HandleUnexpectedEngineExitAsync()
     {
-        if (_reconnectInProgress || _connectionBusy || !_isConnected || _connectedProfile is null ||
-            _closeAfterDisconnect || _closeAfterBusyOperation)
+        if (_reconnectInProgress || _connectionBusy || _connection.IsRunning || !_isConnected ||
+            _connectedProfile is null || _closeAfterDisconnect || _closeAfterBusyOperation)
             return;
 
         _reconnectInProgress = true;
@@ -1403,7 +1405,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _connectionBusy = false;
             _reconnectInProgress = false;
-            retryAgain = _pendingEngineExit && _isConnected && !_closeAfterDisconnect;
+            retryAgain = _pendingEngineExit && _isConnected && !_connection.IsRunning && !_closeAfterDisconnect;
             _pendingEngineExit = false;
             ProbeProgress.IsIndeterminate = false;
             ProbeProgress.Visibility = Visibility.Collapsed;
