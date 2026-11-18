@@ -168,7 +168,7 @@
                                     <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="21" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,15,0,4"/>
                                     <TextBlock x:Name="ProbeStatus" Text="سرور انتخاب‌شده آماده اتصال" Foreground="#8996A9" FontSize="14" HorizontalAlignment="Center"/>
                                     <ProgressBar x:Name="ProbeProgress" Width="230" Height="4" Margin="0,9,0,0" Maximum="100" Value="0" Visibility="Collapsed" Background="#302544" Foreground="#E8C66A" BorderThickness="0"/>
-                                    <Button x:Name="SmartConnectButton" Click="SmartConnect_Click" Content="✦  انتخاب هوشمند سریع‌ترین سرور" Height="42" MinWidth="270" Margin="0,12,0,0" Background="#4035223F" BorderBrush="#D7B96A" Foreground="#F7E7B1" Padding="18,9"/>
+                                    <Button x:Name="SmartConnectButton" Click="SmartConnect_Click" Content="✦  انتخاب هوشمند سریع‌ترین سرور" Height="42" MinWidth="270" Margin="0,12,0,0" Background="#463A2B58" BorderBrush="#E8C66A" Foreground="#F7E7B1" Padding="18,9"/>
                                 </StackPanel>
                                 <Grid Grid.Row="2">
                                     <TextBlock Text="حالت اتصال" Foreground="#9BAAC6" VerticalAlignment="Center"/>
@@ -220,11 +220,11 @@
                             <StackPanel>
                                 <Grid Margin="0,0,0,6">
                                     <TextBlock Text="اشتراک ویندوز" FontWeight="SemiBold" FontSize="16"/>
-                                    <TextBlock Text="وضعیت و حجم باقی‌مانده" Foreground="#B8AECF" FontSize="13" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="وضعیت و حجم باقی‌مانده" Foreground="#B8AECF" FontSize="14" HorizontalAlignment="Left"/>
                                 </Grid>
                                 <TextBlock x:Name="SubscriptionSummaryText" Text="برای نمایش وضعیت، کد فعال‌سازی را ثبت کن." Foreground="#F1E9CF" TextWrapping="Wrap" FontSize="14" Margin="0,4,0,9"/>
                                 <ProgressBar x:Name="SubscriptionUsageProgress" Height="7" Minimum="0" Maximum="100" Value="0" Background="#312A45" Foreground="#E8C66A" BorderThickness="0"/>
-                                <TextBlock Text="کانفیگ‌های اختصاصی مقیمی با اشتراک ویندوز فعال می‌شوند." Foreground="#B7B0C9" TextWrapping="Wrap" FontSize="13" Margin="0,8,0,0"/>
+                                <TextBlock Text="کانفیگ‌های اختصاصی مقیمی با اشتراک ویندوز فعال می‌شوند." Foreground="#B7B0C9" TextWrapping="Wrap" FontSize="14" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -258,7 +258,7 @@
                                 <GroupStyle>
                                     <GroupStyle.HeaderTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" Foreground="#E6A0A6" FontSize="14" FontWeight="SemiBold" Margin="4,12,4,6"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="#E8C66A" FontSize="14" FontWeight="SemiBold" Margin="4,12,4,6"/>
                                         </DataTemplate>
                                     </GroupStyle.HeaderTemplate>
                                 </GroupStyle>
@@ -292,7 +292,7 @@
                                     <Button Click="AddSubscription_Click" Content="+ افزودن اشتراک" Margin="4,0"/>
                                     <Button Click="RefreshSubscription_Click" Content="به‌روزرسانی اشتراک انتخاب‌شده" Margin="4,0"/>
                                     <Button Click="RemoveSubscription_Click" Content="حذف اشتراک" Margin="4,0"/>
-                                    <Button Click="CloudSync_Click" Content="همگام‌سازی سایت مقیمی" Margin="4,0" Background="#39212A" BorderBrush="#8F3846"/>
+                                    <Button Click="CloudSync_Click" Content="همگام‌سازی سایت مقیمی" Margin="4,0" Background="#423152" BorderBrush="#A78BFA"/>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
@@ -313,12 +313,12 @@
                 <TabItem>
                     <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Background="#20271D30" BorderBrush="#8B7549" Margin="0,0,0,14">
+                            <Border Style="{StaticResource Card}" Background="#20271D30" BorderBrush="#B69A53" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="به‌روزرسانی برنامه ویندوز" Style="{StaticResource SectionTitle}" Foreground="#F2D98E"/>
                                     <TextBlock x:Name="WindowsUpdateStatusText" Text="برای بررسی نسخه جدید، دکمه بررسی را بزن." Foreground="#D9D1E7" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,12"/>
                                     <WrapPanel>
-                                        <Button x:Name="CheckWindowsUpdateButton" Click="CheckWindowsUpdate_Click" Content="بررسی نسخه جدید" Margin="4,0" Background="#493C25" BorderBrush="#C6A95A"/>
+                                        <Button x:Name="CheckWindowsUpdateButton" Click="CheckWindowsUpdate_Click" Content="بررسی نسخه جدید" Margin="4,0" Background="#44345D" BorderBrush="#E8C66A"/>
                                         <Button x:Name="InstallWindowsUpdateButton" Click="InstallWindowsUpdate_Click" Content="دانلود و نصب نسخه جدید" IsEnabled="False" Margin="4,0" Background="#5744A0" BorderBrush="#B69AF2"/>
                                     </WrapPanel>
                                 </StackPanel>
