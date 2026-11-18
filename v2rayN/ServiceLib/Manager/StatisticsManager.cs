@@ -19,13 +19,14 @@ public class StatisticsManager
     {
         _config = config;
         _updateFunc = updateFunc;
-        if (config.GuiItem.EnableStatistics || _config.GuiItem.DisplayRealTimeSpeed)
-        {
+        if (config.GuiItem.EnableStatistics)
             await InitData();
+        else
+            _lstServerStat = [];
 
-            _statisticsXray = new StatisticsXrayService(config, UpdateServerStatHandler);
-            _statisticsSingbox = new StatisticsSingboxService(config, UpdateServerStatHandler);
-        }
+        // The traffic meter is independent of the optional local statistics display.
+        _statisticsXray = new StatisticsXrayService(config, UpdateServerStatHandler);
+        _statisticsSingbox = new StatisticsSingboxService(config, UpdateServerStatHandler);
     }
 
     public void Close()
@@ -104,6 +105,15 @@ public class StatisticsManager
 
     private async Task UpdateServerStat(ServerSpeedItem server)
     {
+        AppEvents.DispatcherTrafficBytesRequested.Publish(server);
+
+        if (!_config.GuiItem.EnableStatistics)
+        {
+            if (_config.GuiItem.DisplayRealTimeSpeed)
+                await _updateFunc?.Invoke(server);
+            return;
+        }
+
         await GetServerStatItem(_config.IndexId);
 
         if (_serverStatItem is null)

@@ -64,6 +64,28 @@ public class CoreManager
     /// <param name="preContext">Optional pre-socks context passed to <see cref="CoreStartPreService"/>.</param>
     public async Task LoadCore(CoreConfigContext? mainContext, CoreConfigContext? preContext)
     {
+        var authorization = AppEvents.MoghimiConnectionAuthorizationRequested;
+        if (authorization is not null)
+        {
+            var allowed = false;
+            try
+            {
+                allowed = await authorization(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Logging.SaveLog("MoghimiConnectionAuthorization", ex);
+                await UpdateFunc(true, "بررسی سهمیه ویندوز ناموفق بود؛ اتصال برای جلوگیری از مصرف خارج از سهمیه شروع نشد.");
+            }
+
+            if (!allowed)
+            {
+                await CoreStop();
+                await UpdateFunc(true, "سهمیه ویندوز فعال نیست یا حجم قابل استفاده تمام شده است.");
+                return;
+            }
+        }
+
         if (mainContext == null)
         {
             await UpdateFunc(false, ResUI.CheckServerSettings);

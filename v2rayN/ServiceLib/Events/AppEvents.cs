@@ -6,6 +6,9 @@ public static class AppEvents
     public static readonly EventChannel<bool> HasUpdateNotified = new();
 
     public static readonly EventChannel<ServerSpeedItem> DispatcherStatisticsRequested = new();
+    public static readonly EventChannel<ServerSpeedItem> DispatcherTrafficBytesRequested = new();
+    public static readonly EventChannel<string> MoghimiAccessBlockedRequested = new();
+    public static Func<CancellationToken, Task<bool>>? MoghimiConnectionAuthorizationRequested { get; set; }
 
     public static readonly EventChannel<string> SendSnackMsgRequested = new();
     public static readonly EventChannel<string> SendMsgViewRequested = new();

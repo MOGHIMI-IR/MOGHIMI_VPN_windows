@@ -88,6 +88,8 @@ public class StatisticsXrayService
 
                 if (key.StartsWith(Global.ProxyTag))
                 {
+                    server.ProxyUpBytes += state.uplink;
+                    server.ProxyDownBytes += state.downlink;
                     server.ProxyUp += state.uplink / linkBase;
                     server.ProxyDown += state.downlink / linkBase;
                 }
@@ -98,7 +100,9 @@ public class StatisticsXrayService
                 }
             }
 
-            if (server.DirectDown < _serverSpeedItem.DirectDown || server.ProxyDown < _serverSpeedItem.ProxyDown)
+            if (server.DirectDown < _serverSpeedItem.DirectDown ||
+                server.ProxyUpBytes < _serverSpeedItem.ProxyUpBytes ||
+                server.ProxyDownBytes < _serverSpeedItem.ProxyDownBytes)
             {
                 _serverSpeedItem = new();
                 return null;
@@ -106,8 +110,10 @@ public class StatisticsXrayService
 
             ServerSpeedItem curItem = new()
             {
-                ProxyUp = server.ProxyUp - _serverSpeedItem.ProxyUp,
-                ProxyDown = server.ProxyDown - _serverSpeedItem.ProxyDown,
+                ProxyUp = (server.ProxyUpBytes - _serverSpeedItem.ProxyUpBytes) / linkBase,
+                ProxyDown = (server.ProxyDownBytes - _serverSpeedItem.ProxyDownBytes) / linkBase,
+                ProxyUpBytes = server.ProxyUpBytes - _serverSpeedItem.ProxyUpBytes,
+                ProxyDownBytes = server.ProxyDownBytes - _serverSpeedItem.ProxyDownBytes,
                 DirectUp = server.DirectUp - _serverSpeedItem.DirectUp,
                 DirectDown = server.DirectDown - _serverSpeedItem.DirectDown,
             };

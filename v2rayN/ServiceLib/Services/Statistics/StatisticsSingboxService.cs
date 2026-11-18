@@ -80,6 +80,8 @@ public class StatisticsSingboxService
                         {
                             ProxyUp = (long)(up / 1000),
                             ProxyDown = (long)(down / 1000),
+                            ProxyUpBytes = (long)Math.Min(up, (ulong)long.MaxValue),
+                            ProxyDownBytes = (long)Math.Min(down, (ulong)long.MaxValue),
                         }).ConfigureAwait(false);
                     }
                 }
