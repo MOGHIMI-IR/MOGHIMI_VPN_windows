@@ -16,7 +16,7 @@ public sealed class WindowsLicenseStatus
     public string Status { get; init; } = "not_activated";
 }
 
-public sealed class WindowsLicenseService
+public sealed class WindowsLicenseService : IWindowsCloudCatalog
 {
     private const string ApiUrl = "https://hxfnoaeyjnkecegpppcy.supabase.co/functions/v1/windows-api";
     private const int MaxResponseBytes = 4 * 1024 * 1024;
