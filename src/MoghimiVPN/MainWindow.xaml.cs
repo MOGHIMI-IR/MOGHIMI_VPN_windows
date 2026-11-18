@@ -17,6 +17,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromMinutes(15) };
     private readonly DispatcherTimer _sessionTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _usageTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private Guid _usageSessionId;
+    private long _usageSequence;
     private DateTimeOffset? _connectedSince;
     private bool _cloudSyncRunning;
     private bool _connectionBusy;
@@ -53,6 +56,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _connection.LogMessage += (_, message) => Dispatcher.Invoke(() => AppendLog(message));
         _logTimer.Tick += (_, _) => { if (Pages.SelectedIndex == 4) RefreshLogs(); };
         _sessionTimer.Tick += (_, _) => UpdateSessionClock();
+        _usageTimer.Tick += async (_, _) => await ReportWindowsUsageAsync(silent: true);
         var startupSmokeTest = Environment.GetCommandLineArgs().Any(argument =>
             string.Equals(argument, "--startup-smoke-test", StringComparison.OrdinalIgnoreCase));
         if (!startupSmokeTest)
@@ -236,6 +240,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ProbeStatus.Text = "در حال پاک‌سازی مسیر شبکه";
             try
             {
+                await ReportWindowsUsageAsync(silent: true);
+                _usageTimer.Stop();
                 await _connection.StopAsync();
                 _connectedProfile = null;
                 _isConnected = false;
@@ -311,6 +317,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             await _connection.StartAsync(chosen, ProfileStore.Instance.State.Settings, token);
             _connectedProfile = chosen;
             _connectedSince = DateTimeOffset.Now;
+            if (chosen.SubscriptionId == "moghimi-cloud")
+            {
+                _usageSessionId = Guid.NewGuid();
+                _usageSequence = 0;
+                _usageTimer.Start();
+            }
+            else
+            {
+                _usageTimer.Stop();
+                _usageSessionId = Guid.Empty;
+            }
             _isConnected = true;
             _sessionTimer.Start();
             UpdateSessionClock();
@@ -349,7 +366,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_closeAfterBusyOperation)
             {
                 _closeAfterBusyOperation = false;
-                if (_connection.IsRunning) await _connection.StopAsync();
+                if (_connection.IsRunning)
+                {
+                    await ReportWindowsUsageAsync(silent: true);
+                    _usageTimer.Stop();
+                    await _connection.StopAsync();
+                }
                 Close();
             }
         }
@@ -1048,6 +1070,42 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private async Task ReportWindowsUsageAsync(bool silent)
+    {
+        if (_connectedProfile?.SubscriptionId != "moghimi-cloud" ||
+            _usageSessionId == Guid.Empty || !_connection.IsRunning)
+            return;
+
+        try
+        {
+            var snapshot = _connection.GetTrafficSnapshot();
+            if (snapshot.UploadBytes <= 0 && snapshot.DownloadBytes <= 0) return;
+
+            var sequence = Interlocked.Increment(ref _usageSequence);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var report = await _license.ReportUsageAsync(
+                _usageSessionId, sequence, snapshot.DownloadBytes, snapshot.UploadBytes, timeout.Token);
+
+            var cached = await _license.GetStatusAsync();
+            UpdateWindowsLicenseUi(new WindowsLicenseStatus
+            {
+                Active = report.RemainingBytes > 0,
+                GrantedBytes = cached.GrantedBytes,
+                UsedBytes = report.UsedBytes,
+                RemainingBytes = report.RemainingBytes,
+                ExpiresAt = report.ExpiresAt ?? cached.ExpiresAt,
+                Status = report.RemainingBytes <= 0 ? "exhausted" : "active"
+            });
+        }
+        catch (Exception error)
+        {
+            AppendLog("Windows usage report deferred: " + error.GetType().Name);
+            if (!silent)
+                MessageBox.Show("ثبت مصرف انجام نشد؛ برنامه در گزارش بعدی دوباره تلاش می‌کند.",
+                    "گزارش مصرف", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private void UpdateWindowsLicenseUi(WindowsLicenseStatus status)
     {
         if (LicenseStatusText is null) return;
@@ -1111,8 +1169,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _logTimer.Stop();
             _cloudTimer.Stop();
             _sessionTimer.Stop();
+            _usageTimer.Stop();
             IsEnabled = false;
-            try { await _connection.StopAsync(); }
+            try
+            {
+                await ReportWindowsUsageAsync(silent: true);
+                await _connection.StopAsync();
+            }
             finally
             {
                 _connection.Dispose();
@@ -1125,6 +1188,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _logTimer.Stop();
         _cloudTimer.Stop();
         _sessionTimer.Stop();
+        _usageTimer.Stop();
         _connection.Dispose();
         SystemProxyController.Restore();
     }
