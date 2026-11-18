@@ -48,19 +48,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } |
+          # Preserve this fork's workflows; the runner token intentionally has no workflow-write scope.
+          Get-ChildItem -Force |
+            Where-Object { $_.Name -notin @(".git", ".github") } |
             Remove-Item -Recurse -Force
           Get-ChildItem -Force $env:UPSTREAM_SOURCE |
-            Where-Object { $_.Name -ne ".git" } |
+            Where-Object { $_.Name -notin @(".git", ".github", ".gitmodules") } |
             ForEach-Object {
               Copy-Item $_.FullName -Destination $PWD -Recurse -Force
             }
-          # GlobalHotKeys is a submodule upstream; vendor its tracked source in this fork.
+          # GlobalHotKeys is a submodule upstream; vendor its source files without nested Git metadata.
           Get-ChildItem -Path $PWD -Recurse -Force -Filter ".git" -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -ne (Join-Path $PWD ".git") } |
             ForEach-Object { Remove-Item $_.FullName -Force -Recurse }
-          New-Item -ItemType Directory -Force ".github/workflows" | Out-Null
-          Copy-Item $env:BOOTSTRAP_FILE ".github/workflows/bootstrap-v2rayn.yml" -Force
 
           @'
           # Moghimi Windows Client — upstream foundation
