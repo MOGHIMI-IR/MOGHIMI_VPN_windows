@@ -84,9 +84,7 @@ jobs:
             if (-not $fontFile -or $fontFile.Length -lt 100000) { throw "Required Estedad font is missing or invalid: $fontName" }
             Copy-Item $fontFile.FullName (Join-Path $fontDestination $fontName) -Force
           }
-          $fontLicense = Get-ChildItem $extract -Recurse -File -Filter "OFL.txt" | Select-Object -First 1
-          if (-not $fontLicense) { throw "Estedad OFL license was not found in the pinned release archive." }
-          Copy-Item $fontLicense.FullName (Join-Path $fontDestination "Estedad-OFL.txt") -Force
+          if (-not (Test-Path (Join-Path $fontDestination "Estedad-OFL.txt"))) { throw "Bundled Estedad OFL license is missing from source." }
 
       - name: Restore and publish
         shell: pwsh
