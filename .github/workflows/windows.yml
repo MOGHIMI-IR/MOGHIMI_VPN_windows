@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.1-beta.1" }
           dotnet restore MoghimiVPN.sln
           if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed." }
           dotnet publish src/MoghimiVPN/MoghimiVPN.csproj -c Release -r win-x64 --self-contained true -p:Version=$version -p:PublishSingleFile=false -o publish
@@ -176,7 +176,7 @@ jobs:
 
           if (-not $isccPath) { throw "Inno Setup compiler was not found after checking PATH and standard install folders." }
           Write-Host "Using Inno Setup compiler: $isccPath"
-          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.0" }
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "1.0.1-beta.1" }
           & $isccPath "/DAppVersion=$version" "installer\MoghimiVPN.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed." }
 
@@ -259,7 +259,7 @@ jobs:
           }
           $base = "https://hxfnoaeyjnkecegpppcy.supabase.co"
           $installer = (Resolve-Path "artifacts\MoghimiVPN-Setup-x64.exe").Path
-          $version = if ("$env:GITHUB_REF" -match "^refs/tags/v") { "$env:GITHUB_REF".Split("/")[-1].TrimStart("v") } else { "1.0.0" }
+          $version = if ("$env:GITHUB_REF" -match "^refs/tags/v") { "$env:GITHUB_REF".Split("/")[-1].TrimStart("v") } else { "1.0.1-beta.1" }
           $match = [regex]::Match($version, "^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)")
           if (-not $match.Success) { throw "Version '$version' is not a valid semver release." }
           $versionCode = ([int64]$match.Groups["major"].Value * 1000000) + ([int64]$match.Groups["minor"].Value * 1000) + [int64]$match.Groups["patch"].Value
@@ -301,9 +301,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: windows-v1.0.0-beta.1
+          tag_name: windows-v1.0.1-beta.1
           target_commitish: main
-          name: Moghimi VPN for Windows 1.0.0 Beta 1
+          name: Moghimi VPN for Windows 1.0.1 Beta 1
           prerelease: true
           generate_release_notes: true
           overwrite_files: true
