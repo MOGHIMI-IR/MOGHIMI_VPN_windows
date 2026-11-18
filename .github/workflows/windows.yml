@@ -277,6 +277,7 @@ jobs:
           }
           Write-Host "Installer install, startup and uninstall smoke tests passed."
 
+      # This deploys the built installer to the Windows Supabase release bucket when the Actions secret is set.
       - name: Publish Installer to Windows Supabase (optional)
         shell: pwsh
         env:
