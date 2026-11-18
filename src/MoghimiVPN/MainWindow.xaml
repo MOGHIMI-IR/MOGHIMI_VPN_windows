@@ -1,8 +1,8 @@
 <Window x:Class="MoghimiVPN.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Moghimi VPN" Width="1360" Height="860" MinWidth="1100" MinHeight="700" FontSize="15" UseLayoutRounding="True" SnapsToDevicePixels="True"
-        WindowStartupLocation="CenterScreen" Background="#080B14" Foreground="#F4F6FF"
+        Title="Moghimi VPN" Width="1440" Height="900" MinWidth="1180" MinHeight="760" FontSize="15" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        WindowStartupLocation="CenterScreen" Background="#080B18" Foreground="#F4F6FF"
         FlowDirection="RightToLeft" FontFamily="{StaticResource AppFont}" Closing="Window_Closing">
     <Window.Icon>
         <BitmapImage UriSource="pack://application:,,,/Assets/moghimi-vpn-icon.png"/>
@@ -14,7 +14,8 @@
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="#C51A172B"/><Setter Property="BorderBrush" Value="#806A578F"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="22"/><Setter Property="Padding" Value="22"/>
+            <Setter Property="Background" Value="#9B1D2A48"/><Setter Property="BorderBrush" Value="#778E8CC4"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="25"/><Setter Property="Padding" Value="24"/>
+            <Setter Property="Effect"><Setter.Value><DropShadowEffect Color="#050817" BlurRadius="25" ShadowDepth="0" Opacity="0.32"/></Setter.Value></Setter>
         </Style>
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#F3F5F8"/>
@@ -37,17 +38,17 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="ItemBorder" Background="#AA201C35" BorderBrush="#664E4568"
+                        <Border x:Name="ItemBorder" Background="#8F202E4C" BorderBrush="#667E74A8"
                                 BorderThickness="1" CornerRadius="12" Padding="12">
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#E8C66A"/>
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#49372B4B"/>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#A52D3658"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#B18CFF"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#C0A5FF"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,7 +58,7 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#070812" Offset="0"/><GradientStop Color="#111025" Offset="0.52"/><GradientStop Color="#17132B" Offset="1"/></LinearGradientBrush></Grid.Background>
+        <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#070A17" Offset="0"/><GradientStop Color="#111A32" Offset="0.52"/><GradientStop Color="#1A1B37" Offset="1"/></LinearGradientBrush></Grid.Background>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="252"/>
             <ColumnDefinition Width="*"/>
@@ -81,11 +82,11 @@
             </Ellipse>
         </Canvas>
 
-        <Border Grid.Column="0" BorderBrush="#514168" BorderThickness="0,0,1,0" Padding="21">
-            <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#0D0D1B" Offset="0"/><GradientStop Color="#1A1731" Offset="0.56"/><GradientStop Color="#211A35" Offset="1"/></LinearGradientBrush></Border.Background>
+        <Border Grid.Column="0" BorderBrush="#665D6F9A" BorderThickness="0,0,1,0" Padding="21">
+            <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#BA101A30" Offset="0"/><GradientStop Color="#B21A2844" Offset="0.56"/><GradientStop Color="#B9212D4B" Offset="1"/></LinearGradientBrush></Border.Background>
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Top">
-                    <Border Width="70" Height="70" CornerRadius="22" Background="#3A2C52" BorderBrush="#9A7CC8" BorderThickness="1" HorizontalAlignment="Right" Margin="0,8,0,15">
+                    <Border Width="70" Height="70" CornerRadius="22" Background="#AA312E57" BorderBrush="#B8A78BFA" BorderThickness="1" HorizontalAlignment="Right" Margin="0,8,0,15">
                         <Grid><Image Source="pack://application:,,,/Assets/moghimi-vpn-icon.png" Stretch="Uniform" Margin="8"/></Grid>
                     </Border>
                     <TextBlock Text="MOGHIMI VPN" FontSize="22" FontWeight="Black" Foreground="White"/>
@@ -97,7 +98,7 @@
                     <Button Style="{StaticResource NavButton}" Click="SettingsNav_Click" Content="⚙    تنظیمات"/>
                     <Button Style="{StaticResource NavButton}" Click="LogsNav_Click" Content="≡    گزارش اتصال"/>
                 </StackPanel>
-                <Border DockPanel.Dock="Bottom" Background="#B5211D3A" BorderBrush="#705A83" BorderThickness="1" CornerRadius="16" Padding="13" Margin="0,20,0,4">
+                <Border DockPanel.Dock="Bottom" Background="#94222F4D" BorderBrush="#708C83B8" BorderThickness="1" CornerRadius="16" Padding="13" Margin="0,20,0,4">
                     <StackPanel>
                         <TextBlock Text="حریم خصوصی" FontWeight="SemiBold" FontSize="14"/>
                         <TextBlock Text="بدون ردیابی، تبلیغات یا ورود به حساب ویندوز" TextWrapping="Wrap" Foreground="#9BAAC6" FontSize="14" Margin="0,5,0,0"/>
@@ -116,7 +117,7 @@
                     <TextBlock x:Name="PageTitle" Text="داشبورد اتصال" FontSize="28" FontWeight="Bold"/>
                     <TextBlock x:Name="PageDescription" Text="وضعیت اتصال و سرور فعال" Foreground="#9BAAC6" FontSize="14" Margin="0,4,0,0"/>
                 </StackPanel>
-                <Border HorizontalAlignment="Left" VerticalAlignment="Center" Background="#B72A2443" BorderBrush="#8870A6" BorderThickness="1" CornerRadius="20" Padding="12,7">
+                <Border HorizontalAlignment="Left" VerticalAlignment="Center" Background="#9C263653" BorderBrush="#8AA58EF8" BorderThickness="1" CornerRadius="20" Padding="12,7">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="#E8C66A" Margin="0,0,8,0"/>
                         <TextBlock x:Name="HeaderStatus" Text="آماده اتصال" FontSize="15" Foreground="#CFD7E2"/>
@@ -133,7 +134,7 @@
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="0.8*"/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="154"/></Grid.RowDefinitions>
-                        <Border Grid.Column="0" Grid.Row="0" Style="{StaticResource Card}" Background="#C51F1A35" BorderBrush="#856A9F" Margin="0,0,14,14">
+                        <Border Grid.Column="0" Grid.Row="0" Style="{StaticResource Card}" Background="#9A273657" BorderBrush="#8D9E88F5" Margin="0,0,14,14">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <StackPanel>
@@ -167,8 +168,8 @@
                                     </Button>
                                     <TextBlock x:Name="ConnectionStatus" Text="قطع" FontSize="21" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,15,0,4"/>
                                     <TextBlock x:Name="ProbeStatus" Text="سرور انتخاب‌شده آماده اتصال" Foreground="#8996A9" FontSize="14" HorizontalAlignment="Center"/>
-                                    <ProgressBar x:Name="ProbeProgress" Width="230" Height="4" Margin="0,9,0,0" Maximum="100" Value="0" Visibility="Collapsed" Background="#302544" Foreground="#E8C66A" BorderThickness="0"/>
-                                    <Button x:Name="SmartConnectButton" Click="SmartConnect_Click" Content="✦  انتخاب هوشمند سریع‌ترین سرور" Height="42" MinWidth="270" Margin="0,12,0,0" Background="#463A2B58" BorderBrush="#E8C66A" Foreground="#F7E7B1" Padding="18,9"/>
+                                    <ProgressBar x:Name="ProbeProgress" Width="230" Height="4" Margin="0,9,0,0" Maximum="100" Value="0" Visibility="Collapsed" Background="#39324F" Foreground="#E8C66A" BorderThickness="0"/>
+                                    <Button x:Name="SmartConnectButton" Click="SmartConnect_Click" Content="✦  انتخاب هوشمند سریع‌ترین سرور" Height="42" MinWidth="270" Margin="0,12,0,0" Background="#6D342E55" BorderBrush="#E8C66A" Foreground="#F7E7B1" Padding="18,9"/>
                                 </StackPanel>
                                 <Grid Grid.Row="2">
                                     <TextBlock Text="حالت اتصال" Foreground="#9BAAC6" VerticalAlignment="Center"/>
@@ -180,12 +181,12 @@
                         <Border Grid.Column="1" Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,14">
                             <StackPanel>
                                 <TextBlock Text="سرور انتخاب‌شده" Style="{StaticResource SectionTitle}"/>
-                                <Border Background="#A92A2440" BorderBrush="#735D8B" BorderThickness="1" CornerRadius="13" Padding="14">
+                                <Border Background="#992C3D5B" BorderBrush="#798C8DBE" BorderThickness="1" CornerRadius="13" Padding="14">
                                     <StackPanel>
                                         <TextBlock x:Name="SelectedProfileName" Text="هنوز سروری انتخاب نشده" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="SelectedProfileEndpoint" Text="از بخش کانفیگ‌ها یک سرور اضافه کن" Foreground="#9BAAC6" FontSize="14" Margin="0,7,0,0" TextWrapping="Wrap"/>
                                         <TextBlock x:Name="SelectedProfileLatency" Text="— ms" Foreground="#64DDBB" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                                        <Border Background="#99211D33" CornerRadius="9" Padding="10,8" Margin="0,12,0,0">
+                                        <Border Background="#8A25334D" CornerRadius="9" Padding="10,8" Margin="0,12,0,0">
                                             <Grid>
                                                 <TextBlock Text="مدت اتصال" Foreground="#9BAAC6" FontSize="14" VerticalAlignment="Center"/>
                                                 <TextBlock x:Name="SessionUptime" Text="00:00:00" Foreground="#9BAAC6" FontSize="14" FontWeight="SemiBold" FontFamily="{StaticResource AppFont}" HorizontalAlignment="Left" VerticalAlignment="Center"/>

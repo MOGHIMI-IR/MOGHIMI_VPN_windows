@@ -52,6 +52,45 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         Timeout = TimeSpan.FromSeconds(18)
     };
 
+    // GitHub Releases redirects installer downloads to signed release-assets URLs.
+    // Keep the API client strict (no redirects); use a separate bounded client for verified assets.
+    private static readonly HttpClient DownloadClient = new(
+        new SocketsHttpHandler
+        {
+            AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 5,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+        })
+    {
+        Timeout = TimeSpan.FromMinutes(5)
+    };
+
+    private static bool IsAllowedInstallerUri(Uri uri)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo))
+            return false;
+
+        if (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            return uri.AbsolutePath.StartsWith("/MOGHIMI-IR/MOGHIMI_VPN_windows/releases/download/", StringComparison.OrdinalIgnoreCase)
+                && uri.AbsolutePath.EndsWith("/MoghimiVPN-Setup-x64.exe", StringComparison.OrdinalIgnoreCase);
+
+        return uri.Host.Equals(new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal);
+    }
+
+    private static bool IsAllowedFinalDownloadUri(Uri uri)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo))
+            return false;
+
+        return uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || (uri.Host.Equals(new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase)
+                && uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal));
+    }
+
     private sealed class PersistedAuth
     {
         public string InstallationId { get; set; } = Guid.NewGuid().ToString();
@@ -262,9 +301,7 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
 
         if (string.IsNullOrWhiteSpace(info.VersionName) || info.VersionCode <= 0 ||
             !Uri.TryCreate(info.InstallerUrl, UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps ||
-            !string.Equals(uri.Host, new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase) ||
-            !uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal) ||
+            !IsAllowedInstallerUri(uri) ||
             !System.Text.RegularExpressions.Regex.IsMatch(info.Sha256, "^[a-fA-F0-9]{64}$") ||
             info.FileSize <= 0 || info.FileSize > 1024L * 1024 * 1024)
             throw new InvalidOperationException("نشانی، اندازه یا امضای Hash فایل نصب ویندوز معتبر نیست.");
@@ -278,22 +315,18 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
         CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(release.InstallerUrl, UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps ||
-            !string.Equals(uri.Host, new Uri(ApiUrl).Host, StringComparison.OrdinalIgnoreCase) ||
-            !uri.AbsolutePath.StartsWith("/storage/v1/object/public/windows-releases/", StringComparison.Ordinal) ||
+            !IsAllowedInstallerUri(uri) ||
             !System.Text.RegularExpressions.Regex.IsMatch(release.Sha256, "^[a-fA-F0-9]{64}$") ||
             release.FileSize <= 0 || release.FileSize > 1024L * 1024 * 1024)
             throw new InvalidOperationException("آدرس یا مشخصات فایل نصب‌کننده مجاز نیست.");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.UserAgent.ParseAdd("MoghimiVPN-Windows/1.0");
-        using var response = await Client.SendAsync(
+        using var response = await DownloadClient.SendAsync(
             request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         var finalUri = response.RequestMessage?.RequestUri;
-        if (finalUri is null || finalUri.Scheme != Uri.UriSchemeHttps ||
-            !string.Equals(finalUri.Host, uri.Host, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(finalUri.AbsolutePath, uri.AbsolutePath, StringComparison.Ordinal))
-            throw new InvalidOperationException("دانلود به میزبان یا مسیر دیگری هدایت شد و مسدود شد.");
+        if (finalUri is null || !IsAllowedFinalDownloadUri(finalUri))
+            throw new InvalidOperationException("دانلود به میزبان غیرمجاز هدایت شد و مسدود شد.");
         response.EnsureSuccessStatusCode();
 
         if (response.Content.Headers.ContentLength is long contentLength &&

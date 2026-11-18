@@ -165,8 +165,7 @@ public static class SingBoxConfigBuilder
                 {
                     ["type"] = "udp",
                     ["tag"] = "probe-dns",
-                    ["server"] = "1.1.1.1",
-                    ["detour"] = "direct"
+                    ["server"] = "1.1.1.1"
                 }),
                 ["final"] = "probe-dns"
             },

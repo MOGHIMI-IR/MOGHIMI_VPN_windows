@@ -24,7 +24,7 @@ public sealed class ConnectionManager : IDisposable
     private readonly string _tunnelHostPath = Path.Combine(AppContext.BaseDirectory, "tunnel-host", "MoghimiVPN.TunnelHost.exe");
     public event EventHandler<string>? LogMessage;
     public event EventHandler? EngineExited;
-    public bool IsRunning => _process is { HasExited: false };
+    public bool IsRunning => _process is { } process && !HasExitedSafely(process);
     public (long UploadBytes, long DownloadBytes) GetTrafficSnapshot() =>
         (Interlocked.Read(ref _uploadBytes), Interlocked.Read(ref _downloadBytes));
 
@@ -115,7 +115,7 @@ public sealed class ConnectionManager : IDisposable
                 _systemProxyPort = proxyPort;
                 SystemProxyController.Enable(port: proxyPort);
                 _systemProxyEnabled = true;
-                if (_process.HasExited)
+                if (_HasExitedSafely(process))
                 {
                     SystemProxyController.Restore();
                     _systemProxyEnabled = false;
@@ -123,7 +123,7 @@ public sealed class ConnectionManager : IDisposable
                 }
             }
 
-            if (_process.HasExited)
+            if (_HasExitedSafely(process))
                 throw new InvalidOperationException("هسته VPN پیش از تکمیل راه‌اندازی متوقف شد.");
 
             _trafficMonitorCts?.Dispose();
@@ -144,6 +144,12 @@ public sealed class ConnectionManager : IDisposable
         }
     }
 
+    private static bool HasExitedSafely(Process process)
+    {
+        try { return process.HasExited; }
+        catch (InvalidOperationException) { return true; }
+    }
+
     private static int ReserveLocalPort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -161,7 +167,7 @@ public sealed class ConnectionManager : IDisposable
         while (timer.Elapsed < timeout)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (process.HasExited)
+            if (HasExitedSafely(process))
                 throw new InvalidOperationException("sing-box پیش از آماده‌شدن پراکسی متوقف شد. گزارش اتصال را بررسی کن.");
 
             try
@@ -203,7 +209,7 @@ public sealed class ConnectionManager : IDisposable
         while (timer.Elapsed < timeout)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (process.HasExited)
+            if (HasExitedSafely(process))
                 throw new InvalidOperationException("هستهٔ VPN پیش از ساخت رابط TUN متوقف شد. گزارش اتصال را بررسی کن.");
 
             var adapter = FindTunInterface();
@@ -255,7 +261,7 @@ public sealed class ConnectionManager : IDisposable
         if (process is null) return;
         try
         {
-            if (!process.HasExited)
+            if (!HasExitedSafely(process))
             {
                 // sing-box must close cleanly so it can remove its TUN interface and routes.
                 if (OperatingSystem.IsWindows() && AttachConsole((uint)process.Id))
@@ -273,7 +279,7 @@ public sealed class ConnectionManager : IDisposable
                     }
                     try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(6)); } catch { }
                 }
-                if (!process.HasExited)
+                if (!HasExitedSafely(process))
                 {
                     process.Kill(entireProcessTree: true);
                     await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
@@ -367,7 +373,7 @@ public sealed class ConnectionManager : IDisposable
     {
         if (_systemProxyEnabled) SystemProxyController.Restore();
         // Normal window shutdown uses StopAsync before Dispose; this is a last-resort cleanup.
-        try { if (_process is { HasExited: false }) _process.Kill(true); } catch { }
+        try { if (_process is { } process && !HasExitedSafely(process)) process.Kill(true); } catch { }
         _process?.Dispose();
     }
 
