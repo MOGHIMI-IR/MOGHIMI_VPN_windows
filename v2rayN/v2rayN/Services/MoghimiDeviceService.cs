@@ -61,6 +61,7 @@ public sealed class MoghimiDeviceService : IDisposable
     private Timer? _timer;
     private bool _registered;
     private bool _disposed;
+    private int _accessBlockedNotified;
     private MoghimiQuotaStatus? _status;
     private DateTimeOffset _statusAt;
     private readonly Guid _sessionId = Guid.NewGuid();
@@ -157,7 +158,7 @@ public sealed class MoghimiDeviceService : IDisposable
         var status = await GetStatusAsync(cancellationToken, forceRefresh);
         if (!status.AccessAllowed)
         {
-            AccessBlocked?.Invoke("سهمیه رایگان ۸ گیگابایتی و حجم اشتراک خریداری‌شده این دستگاه به پایان رسیده است.");
+            NotifyAccessBlocked("سهمیه رایگان ۸ گیگابایتی و حجم اشتراک خریداری‌شده این دستگاه به پایان رسیده است.");
             return false;
         }
         return true;
@@ -327,7 +328,7 @@ public sealed class MoghimiDeviceService : IDisposable
             {
                 var allowed = await EnsureAccessAsync(CancellationToken.None, true);
                 if (!allowed)
-                    AccessBlocked?.Invoke("حجم قابل استفاده این دستگاه تمام شده است؛ اتصال در حال متوقف شدن است.");
+                    NotifyAccessBlocked("حجم قابل استفاده این دستگاه تمام شده است؛ اتصال در حال متوقف شدن است.");
             }
         }
         catch (Exception ex)
@@ -384,7 +385,7 @@ public sealed class MoghimiDeviceService : IDisposable
                 SetStatus(status);
                 if (!status.AccessAllowed)
                 {
-                    AccessBlocked?.Invoke("سهمیه رایگان و حجم اشتراک خریداری‌شده تمام شده است.");
+                    NotifyAccessBlocked("سهمیه رایگان و حجم اشتراک خریداری‌شده تمام شده است.");
                     break;
                 }
             }
@@ -397,9 +398,10 @@ public sealed class MoghimiDeviceService : IDisposable
 
     public async Task ShutdownAsync()
     {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         try
         {
-            await ReportUsageAsync(new CancellationTokenSource(TimeSpan.FromSeconds(8)).Token);
+            await ReportUsageAsync(timeout.Token);
         }
         catch (Exception ex)
         {
@@ -487,7 +489,15 @@ public sealed class MoghimiDeviceService : IDisposable
     {
         _status = status;
         _statusAt = DateTimeOffset.UtcNow;
+        if (status.AccessAllowed)
+            Interlocked.Exchange(ref _accessBlockedNotified, 0);
         StatusChanged?.Invoke(status);
+    }
+
+    private void NotifyAccessBlocked(string message)
+    {
+        if (Interlocked.Exchange(ref _accessBlockedNotified, 1) == 0)
+            AccessBlocked?.Invoke(message);
     }
 
     private static bool ReadBool(JsonElement root, string key) =>
@@ -510,8 +520,6 @@ public sealed class MoghimiDeviceService : IDisposable
         _disposed = true;
         _timer?.Dispose();
         _trafficSubscription.Dispose();
-        _registrationGate.Dispose();
-        _statusGate.Dispose();
-        _reportGate.Dispose();
+        // Leave semaphores undisposed while a timer or final flush may still unwind.
     }
 }
