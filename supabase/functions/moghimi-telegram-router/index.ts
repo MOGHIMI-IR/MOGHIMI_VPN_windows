@@ -15,7 +15,12 @@ const BOT_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? "";
 const MOBILE_WEBHOOK_SECRET = Deno.env.get("MOBILE_BOT_WEBHOOK_SECRET") || BOT_SECRET;
 const MOBILE_FUNCTION_URL = "https://qaxiunpklkbgfjwmpwfp.supabase.co/functions/v1/moghimi-telegram";
 const CARD = Deno.env.get("PAYMENT_CARD_NUMBER") ?? "";
-const ENV_ADMINS = new Set((Deno.env.get("TELEGRAM_ADMIN_IDS") ?? "").split(",").map(x => x.trim()).filter(Boolean));
+const REVOKED_WINDOWS_ADMIN_IDS = new Set(["8400006272"]);
+const ENV_ADMINS = new Set(
+  (Deno.env.get("TELEGRAM_ADMIN_IDS") ?? "")
+    .split(",").map(x => x.trim()).filter(Boolean)
+    .filter(id => !REVOKED_WINDOWS_ADMIN_IDS.has(id))
+);
 const TG = "https://api.telegram.org/bot" + BOT_TOKEN;
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
@@ -53,31 +58,41 @@ async function tg(method: string, data: Record<string, unknown>) {
 async function send(chatId: number | string, text: string, markup?: unknown) {
   return tg("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", ...(markup ? { reply_markup: markup } : {}) });
 }
-async function sendAdmins(text: string, markup?: unknown) {
-  const admins = new Set(ENV_ADMINS);
+async function getWindowsAdminIds(): Promise<Set<string>> {
+  const admins = new Set([...ENV_ADMINS].filter(id => !REVOKED_WINDOWS_ADMIN_IDS.has(id)));
   try {
     const rows = await db("windows_telegram_admins?enabled=eq.true&select=telegram_user_id");
-    for (const row of rows ?? []) admins.add(String(row.telegram_user_id));
+    for (const row of rows ?? []) {
+      const id = String(row.telegram_user_id);
+      if (!REVOKED_WINDOWS_ADMIN_IDS.has(id)) admins.add(id);
+    }
   } catch (error) {
     console.error("windows_admin_lookup_failed", error instanceof Error ? error.message : "failed");
   }
+  return admins;
+}
+async function sendAdmins(text: string, markup?: unknown) {
+  const admins = await getWindowsAdminIds();
+  let delivered = 0;
   for (const admin of admins) {
-    try { await send(Number(admin), text, markup); }
-    catch (error) { console.error("windows_admin_notify_failed", String(error)); }
+    try {
+      await send(Number(admin), text, markup);
+      delivered++;
+    } catch (error) {
+      console.error("windows_admin_notify_failed", error instanceof Error ? error.message : "failed");
+    }
   }
+  console.log("windows_admin_notify_result", JSON.stringify({ total: admins.size, delivered }));
+  return { total: admins.size, delivered };
 }
 async function sendAdminsFile(message: any, caption: string) {
-  const admins = new Set(ENV_ADMINS);
-  try {
-    const rows = await db("windows_telegram_admins?enabled=eq.true&select=telegram_user_id");
-    for (const row of rows ?? []) admins.add(String(row.telegram_user_id));
-  } catch (error) {
-    console.error("windows_admin_file_lookup_failed", error instanceof Error ? error.message : "failed");
-  }
+  const admins = await getWindowsAdminIds();
   const photo = message.photo?.at(-1)?.file_id;
   const document = message.document?.file_id;
   const video = message.video?.file_id;
   const voice = message.voice?.file_id;
+  let delivered = 0;
+  if (!photo && !document && !video && !voice) return { total: admins.size, delivered };
   for (const admin of admins) {
     try {
       const chat_id = Number(admin);
@@ -85,10 +100,13 @@ async function sendAdminsFile(message: any, caption: string) {
       else if (document) await tg("sendDocument", { chat_id, document, caption: caption.slice(0, 900) });
       else if (video) await tg("sendVideo", { chat_id, video, caption: caption.slice(0, 900) });
       else if (voice) await tg("sendVoice", { chat_id, voice, caption: caption.slice(0, 900) });
+      delivered++;
     } catch (error) {
       console.error("windows_admin_file_send_failed", error instanceof Error ? error.message : "failed");
     }
   }
+  console.log("windows_admin_file_notify_result", JSON.stringify({ total: admins.size, delivered }));
+  return { total: admins.size, delivered };
 }
 async function setState(userId: number, chatId: number, state: string, data: Record<string, unknown> = {}) {
   await db("windows_bot_user_states?on_conflict=telegram_user_id", "POST", {
@@ -240,8 +258,14 @@ async function windowsCallback(update: any) {
   const data = String(q.data ?? "");
   await tg("answerCallbackQuery", { callback_query_id: q.id });
 
-  if (data === "win:home") return send(chat, "خدمات نسخه ویندوز Moghimi V2Ray:", windowsMenu());
-  if (data === "win:buy") return windowsPlanMenu(chat);
+  if (data === "win:home") {
+    await setState(user.id, chat, "idle");
+    return send(chat, "خدمات نسخه ویندوز Moghimi V2Ray:", windowsMenu());
+  }
+  if (data === "win:buy") {
+    await setState(user.id, chat, "idle");
+    return windowsPlanMenu(chat);
+  }
   if (data === "win:support") {
     const old = await activeSupportThread(user.id);
     if (old) {
@@ -432,6 +456,23 @@ async function windowsUserMessage(message: any, state: any) {
   const text = String(message.text ?? message.caption ?? "").trim();
   await expireOrders(user.id);
 
+  const command = text.toLowerCase().split(/\\s+/)[0];
+  if (["/new", "/buy", "/plans", "/neworder"].includes(command)) {
+    await setState(user.id, chat, "idle");
+    return windowsPlanMenu(chat);
+  }
+
+  if (text === "/close") {
+    const thread = await activeSupportThread(user.id);
+    if (!thread) return send(chat, "مکالمه پشتیبانی ویندوز بازی نداری.");
+    await db("windows_support_threads?id=eq." + thread.id, "PATCH", {
+      status: "closed", closed_at: new Date().toISOString(), close_reason: "closed_by_user"
+    }, "return=minimal");
+    await setState(user.id, chat, "idle");
+    await sendAdmins("کاربر @" + html(user.username ?? user.id) + " مکالمه پشتیبانی ویندوز را بست.");
+    return send(chat, "مکالمه پشتیبانی ویندوز بسته شد.");
+  }
+
   if (state?.state === "days") {
     const days = Number(text);
     if (!Number.isInteger(days) || days < 1 || days > 3650)
@@ -480,30 +521,44 @@ async function windowsUserMessage(message: any, state: any) {
     const doc = message.document?.file_id;
     const file = photo ?? doc;
     if (!file) return send(chat, "لطفاً تصویر فیش را به‌صورت عکس یا فایل ارسال کن.");
-    await db("windows_purchase_orders?id=eq." + orderId, "PATCH", {
-      status: "receipt_submitted", receipt_file_id: file,
-      receipt_message_id: message.message_id, receipt_submitted_at: new Date().toISOString()
-    }, "return=minimal");
-    const receiptCaption = "📥 رسید پرداخت ویندوز\nسفارش: <code>" + orderId +
-      "</code>\nکاربر: @" + html(order.telegram_username) + "\nتلفن: " +
-      order.phone + "\nمبلغ: " + Number(order.amount_toman).toLocaleString("en-US") + " تومان";
-    await sendAdmins(receiptCaption, receiptButtons(orderId));
-    await sendAdminsFile(message, "رسید خرید ویندوز · سفارش " + orderId);
-    await setState(user.id, chat, "receipt_submitted", { order_id: orderId });
-    return send(chat, "رسید خرید ویندوز دریافت شد ✅ پس از تأیید مدیر، کد فعال‌سازی همین‌جا ارسال می‌شود.");
-  }
-  if (state?.state === "receipt_submitted")
-    return send(chat, "رسید خرید ویندوز در صف بررسی است؛ پس از تأیید کد فعال‌سازی را دریافت می‌کنی.");
+    const submittedRows = await db(
+      "windows_purchase_orders?id=eq." + orderId +
+      "&telegram_user_id=eq." + user.id + "&status=eq.awaiting_payment",
+      "PATCH",
+      {
+        status: "receipt_submitted",
+        receipt_file_id: file,
+        receipt_message_id: message.message_id,
+        receipt_submitted_at: new Date().toISOString()
+      },
+      "return=representation"
+    );
+    const submittedOrder = submittedRows?.[0];
+    if (!submittedOrder) {
+      await setState(user.id, chat, "idle");
+      return send(chat, "این رسید قبلاً ثبت شده یا سفارش دیگر در انتظار پرداخت نیست. برای سفارش تازه /buy را بزن.");
+    }
 
-  if (text === "/close") {
-    const thread = await activeSupportThread(user.id);
-    if (!thread) return send(chat, "مکالمه پشتیبانی ویندوز بازی نداری.");
-    await db("windows_support_threads?id=eq." + thread.id, "PATCH", {
-      status: "closed", closed_at: new Date().toISOString(), close_reason: "closed_by_user"
-    }, "return=minimal");
+    const receiptCaption = "📥 رسید پرداخت ویندوز\\nسفارش: <code>" + orderId +
+      "</code>\\nکاربر: @" + html(order.telegram_username) + "\\nتلفن: " +
+      order.phone + "\\nمبلغ: " + Number(order.amount_toman).toLocaleString("en-US") + " تومان";
+    const adminNotice = await sendAdmins(receiptCaption, receiptButtons(orderId));
+    const adminFile = await sendAdminsFile(message, "رسید خرید ویندوز · سفارش " + orderId);
+    // Keep the order awaiting review in the database, but never lock the user's chat state.
     await setState(user.id, chat, "idle");
-    await sendAdmins("کاربر @" + html(user.username ?? user.id) + " مکالمه پشتیبانی ویندوز را بست.");
-    return send(chat, "مکالمه پشتیبانی ویندوز بسته شد.");
+    if (adminNotice.delivered === 0) {
+      console.error("windows_receipt_saved_without_admin_delivery", orderId);
+      return send(chat, "رسید ذخیره شد، اما اعلان مدیر تحویل نشد. مدیر باید ابتدا ربات را باز کند و /start بزند؛ سپس از دستور /windowsorders برای دیدن سفارش‌های در انتظار استفاده کند.");
+    }
+    if (adminFile.delivered === 0) {
+      console.error("windows_receipt_file_delivery_failed", orderId);
+      return send(chat, "رسید ثبت شد و اعلان سفارش ارسال شد، اما فایل رسید به مدیر تحویل نشد. لطفاً تصویر رسید را در پشتیبانی هم ارسال کن.");
+    }
+    return send(chat, "رسید خرید ویندوز دریافت شد ✅ برای بررسی به مدیر ارسال شد. کد فعال‌سازی پس از تأیید همین‌جا ارسال می‌شود. برای خرید جدید /buy را بزن.");
+  }
+  if (state?.state === "receipt_submitted") {
+    await setState(user.id, chat, "idle");
+    return send(chat, "رسید قبلی ثبت شده و هنوز در انتظار بررسی است. برای ثبت سفارش جدید /buy را بزن؛ رسید قبلی حذف نمی‌شود.");
   }
 
   const thread = await activeSupportThread(user.id);
@@ -589,7 +644,10 @@ async function processUpdate(update: any) {
 
     const platform = await getPlatform(userId);
     const command = text.replace(/@[^\\s]+$/, "");
-    const windowsAdminCommand = ["/windowsorders", "/worders", "/windowsthreads", "/wthreads"].includes(command);
+    const windowsAdminCommand = [
+      "/windowsorders", "/worders", "/orders", "/windows_orders",
+      "/windowsthreads", "/wthreads", "/threads", "/windows_threads"
+    ].includes(command);
 
     const admins = new Set(ENV_ADMINS);
     if (platform === "windows" || platform === null || windowsAdminCommand) {
