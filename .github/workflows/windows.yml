@@ -277,7 +277,7 @@ jobs:
           }
           Write-Host "Installer install, startup and uninstall smoke tests passed."
 
-      # This deploys the built installer to the Windows Supabase release bucket when the Actions secret is set.
+      # The installer is hosted on the GitHub Release; Supabase stores only version metadata and checksum.
       - name: Publish Windows Beta Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -307,9 +307,9 @@ jobs:
             throw "WINDOWS_SUPABASE_SERVICE_ROLE_KEY is required to register Windows updates."
           }
           $base = "https://hxfnoaeyjnkecegpppcy.supabase.co"
-          $installer = (Resolve-Path "artifacts\\MoghimiVPN-Setup-x64.exe").Path
+          $installer = (Resolve-Path "artifacts\MoghimiVPN-Setup-x64.exe").Path
           $version = if ("$env:GITHUB_REF" -match "^refs/tags/v") { "$env:GITHUB_REF".Split("/")[-1].TrimStart("v") } else { "1.0.1-beta.1" }
-          $match = [regex]::Match($version, "^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)")
+          $match = [regex]::Match($version, "^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)")
           if (-not $match.Success) { throw "Version '$version' is not a valid semver release." }
           $versionCode = ([int64]$match.Groups["major"].Value * 1000000) + ([int64]$match.Groups["minor"].Value * 1000) + [int64]$match.Groups["patch"].Value
           $channel = if ($version -match "(?i)(beta|alpha|rc)") { "beta" } else { "stable" }
@@ -334,6 +334,7 @@ jobs:
           $dbHeaders = @{ apikey = $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY; Authorization = "Bearer $env:WINDOWS_SUPABASE_SERVICE_ROLE_KEY"; Prefer = "resolution=merge-duplicates,return=representation" }
           Invoke-RestMethod -Method Post -Uri "$base/rest/v1/windows_app_releases?on_conflict=version_code" -Headers $dbHeaders -ContentType "application/json" -Body $payload | Out-Null
           Write-Host "Windows installer release metadata registered: $version ($sha)"
+
       - name: Upload Windows Setup only
         uses: actions/upload-artifact@v4
         with:
@@ -341,16 +342,4 @@ jobs:
           path: artifacts/MoghimiVPN-Setup-x64.exe
           if-no-files-found: error
           retention-days: 30
-
-      - name: Publish Windows Beta Release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: windows-v1.0.1-beta.1
-          target_commitish: main
-          name: Moghimi VPN for Windows 1.0.1 Beta 1
-          prerelease: true
-          generate_release_notes: true
-          overwrite_files: true
-          files: artifacts/MoghimiVPN-Setup-x64.exe
 
