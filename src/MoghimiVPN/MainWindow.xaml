@@ -308,6 +308,16 @@
                 <TabItem>
                     <ScrollViewer Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="#20271D30" BorderBrush="#8B7549" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="به‌روزرسانی برنامه ویندوز" Style="{StaticResource SectionTitle}" Foreground="#F2D98E"/>
+                                    <TextBlock x:Name="WindowsUpdateStatusText" Text="برای بررسی نسخه جدید، دکمه بررسی را بزن." Foreground="#D9D1E7" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                    <WrapPanel>
+                                        <Button x:Name="CheckWindowsUpdateButton" Click="CheckWindowsUpdate_Click" Content="بررسی نسخه جدید" Margin="4,0" Background="#493C25" BorderBrush="#C6A95A"/>
+                                        <Button x:Name="InstallWindowsUpdateButton" Click="InstallWindowsUpdate_Click" Content="دانلود و نصب نسخه جدید" IsEnabled="False" Margin="4,0" Background="#5744A0" BorderBrush="#B69AF2"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource Card}" Background="#302A2742" BorderBrush="#9C8556" Margin="0,0,0,14">
                                 <StackPanel>
                                     <TextBlock Text="فعال‌سازی اشتراک ویندوز" Style="{StaticResource SectionTitle}" Foreground="#F4D88B"/>
