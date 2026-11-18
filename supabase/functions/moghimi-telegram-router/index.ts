@@ -223,9 +223,11 @@ async function createWindowsOrder(user: any, phone: string, state: any) {
   }
 }
 async function windowsPlanMenu(chatId: number) {
-  const plans = await db("windows_purchase_plans?is_active=eq.true&select=plan_key,title,plan_kind&order=display_order.asc");
+  const plans = await db("windows_purchase_plans?is_active=eq.true&select=plan_key,title,plan_kind,amount_toman&order=display_order.asc");
   const buttons = (plans ?? []).map((plan: any) => [{
-    text: String(plan.title),
+    text: plan.plan_kind === "fixed" && Number.isFinite(Number(plan.amount_toman))
+      ? String(plan.title) + " · " + Number(plan.amount_toman).toLocaleString("en-US") + " تومان"
+      : String(plan.title),
     callback_data: "win:plan:" + String(plan.plan_key)
   }]);
   buttons.push([{ text: "بازگشت", callback_data: "win:home" }]);
