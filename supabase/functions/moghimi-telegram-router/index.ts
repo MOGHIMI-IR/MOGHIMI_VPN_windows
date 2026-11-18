@@ -456,7 +456,7 @@ async function windowsUserMessage(message: any, state: any) {
   const text = String(message.text ?? message.caption ?? "").trim();
   await expireOrders(user.id);
 
-  const command = text.toLowerCase().split(/\\s+/)[0];
+  const command = text.toLowerCase().split(/\s+/)[0];
   if (["/new", "/buy", "/plans", "/neworder"].includes(command)) {
     await setState(user.id, chat, "idle");
     return windowsPlanMenu(chat);
@@ -539,9 +539,9 @@ async function windowsUserMessage(message: any, state: any) {
       return send(chat, "این رسید قبلاً ثبت شده یا سفارش دیگر در انتظار پرداخت نیست. برای سفارش تازه /buy را بزن.");
     }
 
-    const receiptCaption = "📥 رسید پرداخت ویندوز\\nسفارش: <code>" + orderId +
-      "</code>\\nکاربر: @" + html(order.telegram_username) + "\\nتلفن: " +
-      order.phone + "\\nمبلغ: " + Number(order.amount_toman).toLocaleString("en-US") + " تومان";
+    const receiptCaption = "📥 رسید پرداخت ویندوز\nسفارش: <code>" + orderId +
+      "</code>\nکاربر: @" + html(order.telegram_username) + "\nتلفن: " +
+      order.phone + "\nمبلغ: " + Number(order.amount_toman).toLocaleString("en-US") + " تومان";
     const adminNotice = await sendAdmins(receiptCaption, receiptButtons(orderId));
     const adminFile = await sendAdminsFile(message, "رسید خرید ویندوز · سفارش " + orderId);
     // Keep the order awaiting review in the database, but never lock the user's chat state.
