@@ -109,6 +109,75 @@ async function getAuthenticatedDevice(request: Request) {
   return { device, subscription, active };
 }
 
+async function getAuthenticatedFreeDevice(request: Request) {
+  const token = request.headers.get("x-moghimi-device-token") ?? "";
+  if (!/^[a-f0-9]{64}$/i.test(token)) return null;
+
+  const tokenHash = await sha256(token.toLowerCase());
+  const devices = await db(
+    "windows_free_devices?device_token_hash=eq." + tokenHash +
+    "&status=eq.active&select=id,installation_id_hash,status"
+  );
+  if (!Array.isArray(devices) || devices.length !== 1) return null;
+  return devices[0];
+}
+
+async function handleFreeRegister(request: Request, body: Record<string, unknown>) {
+  const token = request.headers.get("x-moghimi-device-token") ?? "";
+  const installationId = validInstallationId(body.installation_id);
+  if (!installationId || !/^[a-f0-9]{64}$/i.test(token)) {
+    return json({ ok: false, code: "invalid_device_credentials" }, 400);
+  }
+
+  const [installationHash, tokenHash] = await Promise.all([
+    sha256("MoghimiVPN-Windows-Install|" + installationId),
+    sha256(token.toLowerCase())
+  ]);
+  const result = await db("rpc/windows_register_free_device", "POST", {
+    p_installation_id_hash: installationHash,
+    p_device_token_hash: tokenHash
+  });
+  if (!result?.ok) {
+    return json({ ok: false, code: result?.code ?? "device_registration_failed" }, 403);
+  }
+  return json({ ok: true, device_id: result.device_id, status: "active" });
+}
+
+async function handleFreeStatus(request: Request) {
+  const device = await getAuthenticatedFreeDevice(request);
+  if (!device) return json({ ok: false, code: "device_not_registered" }, 401);
+  const status = await db("rpc/windows_free_device_status", "POST", {
+    p_installation_id_hash: device.installation_id_hash
+  });
+  if (!status?.ok) return json(status ?? { ok: false, code: "status_unavailable" }, 403);
+  return json(status);
+}
+
+async function handleFreeUsage(request: Request, body: Record<string, unknown>) {
+  const device = await getAuthenticatedFreeDevice(request);
+  if (!device) return json({ ok: false, code: "device_not_registered" }, 401);
+
+  const sessionId = String(body.session_id ?? "");
+  const sequence = Number(body.sequence);
+  const rx = Number(body.rx_total);
+  const tx = Number(body.tx_total);
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId) ||
+      !Number.isSafeInteger(sequence) || sequence < 1 ||
+      !Number.isSafeInteger(rx) || rx < 0 ||
+      !Number.isSafeInteger(tx) || tx < 0) {
+    return json({ ok: false, code: "invalid_usage_report" }, 400);
+  }
+
+  const result = await db("rpc/windows_report_free_usage", "POST", {
+    p_installation_id_hash: device.installation_id_hash,
+    p_session_id: sessionId,
+    p_sequence: sequence,
+    p_rx_total: rx,
+    p_tx_total: tx
+  });
+  return json(result ?? { ok: false, code: "usage_report_failed" }, result?.ok ? 200 : 409);
+}
+
 async function handleActivate(body: Record<string, unknown>) {
   const code = normalizeCode(body.activation_code);
   const installationId = validInstallationId(body.installation_id);
@@ -175,9 +244,21 @@ async function handleStatus(request: Request) {
 }
 
 async function handleProfiles(request: Request) {
-  const auth = await getAuthenticatedDevice(request);
-  if (!auth) return json({ ok: false, code: "device_not_registered" }, 401);
-  if (!auth.active) return json({ ok: false, code: "subscription_inactive" }, 403);
+  // New clients authenticate with their independent Windows free-quota token.
+  // Retain the legacy paid-device token path for older installed versions.
+  const freeDevice = await getAuthenticatedFreeDevice(request);
+  if (freeDevice) {
+    const status = await db("rpc/windows_free_device_status", "POST", {
+      p_installation_id_hash: freeDevice.installation_id_hash
+    });
+    if (!status?.ok || !status.access_allowed) {
+      return json({ ok: false, code: "quota_exhausted" }, 403);
+    }
+  } else {
+    const auth = await getAuthenticatedDevice(request);
+    if (!auth) return json({ ok: false, code: "device_not_registered" }, 401);
+    if (!auth.active) return json({ ok: false, code: "subscription_inactive" }, 403);
+  }
 
   const rows = await db(
     "windows_server_entries?is_active=eq.true&select=id,title,config_text,priority&order=priority.desc,created_at.desc&limit=2000"
@@ -262,6 +343,12 @@ Deno.serve(async (request: Request) => {
     }
 
     switch (String((body as Record<string, unknown>).action ?? "")) {
+      case "free_register":
+        return await handleFreeRegister(request, body as Record<string, unknown>);
+      case "free_status":
+        return await handleFreeStatus(request);
+      case "free_usage":
+        return await handleFreeUsage(request, body as Record<string, unknown>);
       case "activate":
         return await handleActivate(body as Record<string, unknown>);
       case "status":
