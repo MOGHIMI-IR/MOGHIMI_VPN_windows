@@ -88,7 +88,8 @@ public sealed class ConnectionManager : IDisposable
             startedProcess.EnableRaisingEvents = true;
             startedProcess.Exited += (_, _) =>
             {
-                if (ReferenceEquals(_process, startedProcess))
+                var unexpectedExit = ReferenceEquals(_process, startedProcess);
+                if (unexpectedExit)
                 {
                     _process = null;
                     try { startedProcess.Dispose(); } catch { }
@@ -97,7 +98,10 @@ public sealed class ConnectionManager : IDisposable
                 if (_systemProxyEnabled) SystemProxyController.Restore();
                 _systemProxyEnabled = false;
                 try { File.Delete(configPath); } catch { }
-                EngineExited?.Invoke(this, EventArgs.Empty);
+
+                // StopAsync detaches _process before intentionally closing the host.
+                if (unexpectedExit)
+                    EngineExited?.Invoke(this, EventArgs.Empty);
             };
 
             if (tunnelMode)
