@@ -11,7 +11,8 @@ namespace MoghimiVPN;
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly ConnectionManager _connection = new();
-    private readonly CloudSync _cloudSync = new();
+    private readonly WindowsLicenseService _license = new();
+    private readonly CloudSync _cloudSync;
     private readonly SubscriptionService _subscriptions = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _cloudTimer = new() { Interval = TimeSpan.FromHours(6) };
@@ -36,6 +37,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public MainWindow()
     {
         InitializeComponent();
+        _cloudSync = new CloudSync(_license);
         DataContext = this;
         foreach (var p in ProfileStore.Instance.State.Profiles) Profiles.Add(p);
         foreach (var s in ProfileStore.Instance.State.Subscriptions) Subscriptions.Add(s);
@@ -54,7 +56,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _logTimer.Start();
             _cloudTimer.Tick += async (_, _) => await SyncCloudAsync(silent: true);
             _cloudTimer.Start();
-            Loaded += async (_, _) => await SyncCloudAsync(silent: true);
+            Loaded += async (_, _) =>
+            {
+                await RefreshWindowsLicenseStatusAsync(silent: true);
+                if (_license.HasActivation) await SyncCloudAsync(silent: true);
+            };
         }
     }
 
@@ -259,6 +265,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         _selectedProfile = chosen;
         ProfilesList.SelectedItem = chosen;
+        if (string.Equals(chosen.SubscriptionId, "moghimi-cloud", StringComparison.Ordinal))
+        {
+            try
+            {
+                var license = await _license.GetStatusAsync(token: default);
+                if (!license.Active)
+                {
+                    MessageBox.Show("برای اتصال به سرورهای اختصاصی Moghimi ابتدا اشتراک ویندوز را با کد فعال‌سازی ثبت کن.",
+                        "نیاز به فعال‌سازی", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Navigate(3, "تنظیمات شبکه", "فعال‌سازی اشتراک ویندوز");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "بررسی اشتراک ناموفق بود", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
         ProfileStore.Instance.State.ActiveProfileId = chosen.Id;
         ProfileStore.Instance.Save();
 
@@ -745,6 +770,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async Task SyncCloudAsync(bool silent)
     {
         if (_cloudSyncRunning || _subscriptionRefreshRunning) return;
+        if (!_license.HasActivation)
+        {
+            if (LicenseStatusText is not null) LicenseStatusText.Text = "برای دریافت سرورهای Moghimi، کد فعال‌سازی ویندوز را ثبت کن.";
+            if (!silent) MessageBox.Show("ابتدا کد فعال‌سازی ویندوز را در بخش تنظیمات ثبت کن.", "فعال‌سازی لازم است", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            var license = await _license.GetStatusAsync();
+            UpdateWindowsLicenseUi(license);
+            if (!license.Active)
+            {
+                if (!silent) MessageBox.Show("اشتراک ویندوز فعال نیست یا اعتبار آن پایان یافته است.", "اشتراک غیرفعال", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Windows license check failed: " + ex.Message);
+            if (!silent) MessageBox.Show(ex.Message, "بررسی اشتراک ناموفق", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         if (_connectionBusy || _manualScanBusy)
         {
             if (!silent)
@@ -799,6 +846,75 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             HeaderStatus.Text = _connection.IsRunning ? "متصل" : "آماده اتصال";
             UpdateDashboard();
         }
+    }
+
+
+    private async void ActivateWindows_Click(object sender, RoutedEventArgs e)
+    {
+        var code = PromptDialog.Show(this, "فعال‌سازی اشتراک ویندوز", "کد فعال‌سازی دریافتی از بات تلگرام را وارد کن:");
+        if (string.IsNullOrWhiteSpace(code)) return;
+
+        ActivateWindowsButton.IsEnabled = false;
+        LicenseStatusText.Text = "در حال بررسی و فعال‌سازی کد…";
+        try
+        {
+            var status = await _license.ActivateAsync(code.Trim());
+            UpdateWindowsLicenseUi(status);
+            AppendLog("Windows activation completed.");
+            await SyncCloudAsync(silent: true);
+            MessageBox.Show("اشتراک ویندوز با موفقیت فعال شد.", "فعال‌سازی موفق", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            LicenseStatusText.Text = "فعال‌سازی انجام نشد";
+            AppendLog("Windows activation failed: " + ex.Message);
+            MessageBox.Show(ex.Message, "خطا در فعال‌سازی", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            ActivateWindowsButton.IsEnabled = true;
+        }
+    }
+
+    private async void RefreshWindowsLicense_Click(object sender, RoutedEventArgs e) =>
+        await RefreshWindowsLicenseStatusAsync(silent: false);
+
+    private async Task RefreshWindowsLicenseStatusAsync(bool silent)
+    {
+        try
+        {
+            if (!_license.HasActivation)
+            {
+                LicenseStatusText.Text = "هنوز کد فعال‌سازی ویندوز ثبت نشده است.";
+                return;
+            }
+            var status = await _license.GetStatusAsync();
+            UpdateWindowsLicenseUi(status);
+        }
+        catch (Exception ex)
+        {
+            LicenseStatusText.Text = "وضعیت اشتراک موقتاً در دسترس نیست؛ اینترنت را بررسی کن.";
+            if (!silent) MessageBox.Show(ex.Message, "بررسی اشتراک", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void UpdateWindowsLicenseUi(WindowsLicenseStatus status)
+    {
+        if (LicenseStatusText is null) return;
+        if (!status.Active)
+        {
+            LicenseStatusText.Text = status.Status switch
+            {
+                "not_activated" => "هنوز فعال‌سازی انجام نشده است.",
+                "exhausted" => "حجم اشتراک تمام شده است.",
+                _ => "اشتراک ویندوز فعال نیست."
+            };
+            return;
+        }
+
+        var remainingGb = status.RemainingBytes / 1073741824d;
+        var expiry = status.ExpiresAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "نامشخص";
+        LicenseStatusText.Text = $"اشتراک فعال · {remainingGb:0.##} گیگابایت باقی‌مانده · پایان اعتبار: {expiry}";
     }
 
     private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshLogs();
