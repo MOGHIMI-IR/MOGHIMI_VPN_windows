@@ -1327,7 +1327,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ProbeProgress.IsIndeterminate = true;
             StartOrbAnimation();
 
-            var retryDelays = new[] { 1000, 2000, 4000 };
+            // TUN startup requires an explicit Windows UAC approval; retry once to avoid repeated prompts.
+            // System Proxy does not require elevation, so it can use the full bounded retry schedule.
+            var retryDelays = settings.ConnectionMode == "TUN"
+                ? new[] { 1000 }
+                : new[] { 1000, 2000, 4000 };
             Exception? lastError = null;
             for (var attempt = 0; attempt < retryDelays.Length; attempt++)
             {
