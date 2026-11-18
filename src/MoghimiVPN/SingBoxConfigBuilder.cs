@@ -9,7 +9,7 @@ public static class SingBoxConfigBuilder
         (network ?? "tcp").Trim().ToLowerInvariant() is
             "" or "tcp" or "raw" or "none" or "ws" or "grpc" or "h2" or "http" or "httpupgrade" or "http-upgrade" or "quic";
 
-    public static string Build(ProxyProfile p, AppSettings settings, string logFile, int mixedPort = 2080)
+    public static string Build(ProxyProfile p, AppSettings settings, string logFile, int mixedPort = 2080, int? trafficApiPort = null, string? trafficApiSecret = null)
     {
         if (string.IsNullOrWhiteSpace(p.Server) || p.Port is < 1 or > 65535)
             throw new InvalidOperationException("آدرس یا پورت سرور معتبر نیست.");
@@ -128,6 +128,17 @@ public static class SingBoxConfigBuilder
                 ["rules"] = rules
             }
         };
+        if (trafficApiPort is > 0 && !string.IsNullOrWhiteSpace(trafficApiSecret))
+        {
+            root["experimental"] = new JsonObject
+            {
+                ["clash_api"] = new JsonObject
+                {
+                    ["external_controller"] = $"127.0.0.1:{trafficApiPort.Value}",
+                    ["secret"] = trafficApiSecret
+                }
+            };
+        }
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
