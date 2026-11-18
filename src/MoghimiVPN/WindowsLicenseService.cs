@@ -161,27 +161,48 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
             throw new InvalidOperationException("پاسخ فعال‌سازی معتبر نیست.");
 
         _auth.DeviceToken = token;
+        _cachedStatus = null;
         Save();
         return await GetStatusAsync(cancellationToken);
     }
 
     public async Task<WindowsLicenseStatus> GetStatusAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false)
     {
         if (!HasActivation)
             return new WindowsLicenseStatus { Active = false, Status = "not_activated" };
 
-        using var document = await PostAsync(new { action = "status" }, DeviceToken, cancellationToken);
-        var root = document.RootElement;
-        return new WindowsLicenseStatus
+        if (!forceRefresh && _cachedStatus is not null &&
+            DateTimeOffset.UtcNow - _cachedStatusAt < TimeSpan.FromSeconds(20))
+            return _cachedStatus;
+
+        await _statusGate.WaitAsync(cancellationToken);
+        try
         {
-            Active = root.TryGetProperty("active", out var active) && active.GetBoolean(),
-            GrantedBytes = ReadInt64(root, "granted_bytes"),
-            UsedBytes = ReadInt64(root, "used_bytes"),
-            RemainingBytes = ReadInt64(root, "remaining_bytes"),
-            ExpiresAt = ReadDate(root, "expires_at"),
-            Status = ReadString(root, "status") ?? ReadString(root, "code") ?? "unknown"
-        };
+            if (!forceRefresh && _cachedStatus is not null &&
+                DateTimeOffset.UtcNow - _cachedStatusAt < TimeSpan.FromSeconds(20))
+                return _cachedStatus;
+
+            using var document = await PostAsync(new { action = "status" }, DeviceToken, cancellationToken);
+            var root = document.RootElement;
+            var status = new WindowsLicenseStatus
+            {
+                Active = root.TryGetProperty("active", out var active) && active.GetBoolean(),
+                GrantedBytes = ReadInt64(root, "granted_bytes"),
+                UsedBytes = ReadInt64(root, "used_bytes"),
+                RemainingBytes = ReadInt64(root, "remaining_bytes"),
+                ExpiresAt = ReadDate(root, "expires_at"),
+                Status = ReadString(root, "status") ?? ReadString(root, "code") ?? "unknown"
+            };
+            _cachedStatus = status;
+            _cachedStatusAt = DateTimeOffset.UtcNow;
+            return status;
+        }
+        finally
+        {
+            _statusGate.Release();
+        }
     }
 
 
