@@ -348,6 +348,123 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private async void SmartConnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connection.IsRunning || _connectionBusy || _manualScanBusy ||
+            _cloudSyncRunning || _subscriptionRefreshRunning)
+            return;
+
+        if (!_license.HasActivation)
+        {
+            MessageBox.Show("برای Smart Connect ابتدا کد فعال‌سازی ویندوز را ثبت کن.",
+                "فعال‌سازی لازم است", MessageBoxButton.OK, MessageBoxImage.Information);
+            Navigate(3, "تنظیمات شبکه", "فعال‌سازی اشتراک ویندوز");
+            return;
+        }
+
+        SmartConnectButton.IsEnabled = false;
+        ConnectButton.IsEnabled = false;
+        ProbeProgress.IsIndeterminate = false;
+        ProbeProgress.Value = 0;
+        ProbeProgress.Visibility = Visibility.Visible;
+        ProbeStatus.Text = "در حال دریافت فهرست سرورهای اختصاصی Moghimi…";
+
+        try
+        {
+            await SyncCloudAsync(silent: true);
+            var candidates = Profiles
+                .Where(p => p.SubscriptionId == "moghimi-cloud")
+                .ToList();
+
+            if (candidates.Count == 0)
+                throw new InvalidOperationException("هیچ سرور فعال Moghimi برای تست پیدا نشد.");
+
+            _manualScanBusy = true;
+            _manualScanCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            var token = _manualScanCts.Token;
+            using var throttle = new SemaphoreSlim(4, 4);
+            var results = new System.Collections.Concurrent.ConcurrentBag<(ProxyProfile Profile, int Latency)>();
+            var completed = 0;
+            ProbeStatus.Text = $"در حال سنجش {candidates.Count} سرور با تست واقعی تونل…";
+            StartOrbAnimation();
+
+            var tasks = candidates.Select(async profile =>
+            {
+                await throttle.WaitAsync(token);
+                try
+                {
+                    var latency = await ConnectionLatencyProbe.TestAsync(profile, token);
+                    profile.LatencyMs = latency;
+                    if (latency > 0) results.Add((profile, latency));
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    Dispatcher.BeginInvoke(() => AppendLog($"Smart Connect probe failed for {profile.Name}: {error.Message}"));
+                    profile.LatencyMs = -1;
+                }
+                finally
+                {
+                    throttle.Release();
+                    var done = Interlocked.Increment(ref completed);
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        ProbeProgress.Value = 100d * done / candidates.Count;
+                        ProbeStatus.Text = $"تست سرورها: {done} از {candidates.Count}";
+                    });
+                }
+            }).ToArray();
+
+            await Task.WhenAll(tasks);
+            token.ThrowIfCancellationRequested();
+
+            var best = results.OrderBy(x => x.Latency).FirstOrDefault();
+            if (best.Profile is null)
+                throw new InvalidOperationException("هیچ‌کدام از سرورهای Moghimi پاسخ معتبر ندادند.");
+
+            ProfilesList.SelectedItem = best.Profile;
+            _selectedProfile = best.Profile;
+            SaveState();
+            ProbeStatus.Text = $"بهترین سرور: {best.Profile.Name} · {best.Latency} ms";
+            AppendLog($"Smart Connect selected {best.Profile.Name} at {best.Latency} ms.");
+
+            _manualScanBusy = false;
+            _manualScanCts.Dispose();
+            _manualScanCts = null;
+            ProbeProgress.Visibility = Visibility.Collapsed;
+            StopOrbAnimation();
+            SmartConnectButton.IsEnabled = true;
+            ConnectButton.IsEnabled = true;
+
+            ConnectButton_Click(ConnectButton, new RoutedEventArgs());
+        }
+        catch (OperationCanceledException)
+        {
+            ProbeStatus.Text = "تست هوشمند لغو شد یا زمان آن تمام شد.";
+            AppendLog("Smart Connect scan cancelled or timed out.");
+        }
+        catch (Exception error)
+        {
+            ProbeStatus.Text = "انتخاب هوشمند سرور انجام نشد.";
+            AppendLog("Smart Connect failed: " + error.Message);
+            MessageBox.Show(error.Message, "Smart Connect", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _manualScanBusy = false;
+            _manualScanCts?.Dispose();
+            _manualScanCts = null;
+            ProbeProgress.Visibility = Visibility.Collapsed;
+            ProbeProgress.IsIndeterminate = false;
+            StopOrbAnimation();
+            SmartConnectButton.IsEnabled = true;
+            ConnectButton.IsEnabled = true;
+        }
+    }
+
     private void StartOrbAnimation()
     {
         if (!IsLoaded) return;
