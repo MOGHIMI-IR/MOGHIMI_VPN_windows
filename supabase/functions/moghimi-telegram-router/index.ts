@@ -375,6 +375,7 @@ async function windowsCallback(update: any) {
 async function windowsAdminMessage(message: any, state: any) {
   const user = message.from, chat = message.chat.id;
   const text = String(message.text ?? message.caption ?? "").trim();
+  const command = text.toLowerCase().replace(/@\\S+$/, "").split(/\\s+/)[0];
   if (state?.state === "admin_quote") {
     const amount = Number(text.replace(/[,\s٬]/g, ""));
     if (!Number.isSafeInteger(amount) || amount < 1000 || amount > 1000000000)
@@ -422,7 +423,7 @@ async function windowsAdminMessage(message: any, state: any) {
     await setState(user.id, chat, "idle");
     return send(chat, "پاسخ پشتیبانی ویندوز ارسال شد.");
   }
-  if (text === "/orders" || text === "/windows_orders") {
+  if (["/orders", "/windows_orders", "/windowsorders", "/worders"].includes(command)) {
     const orders = await db("windows_purchase_orders?status=in.(awaiting_quote,awaiting_payment,receipt_submitted)" +
       "&select=id,telegram_username,phone,plan_bytes,plan_days,amount_toman,status&order=created_at.desc&limit=25");
     if (!orders?.length) return send(chat, "سفارش بازی برای ویندوز وجود ندارد.");
@@ -438,7 +439,7 @@ async function windowsAdminMessage(message: any, state: any) {
     }
     return;
   }
-  if (text === "/threads" || text === "/windows_threads") {
+  if (["/threads", "/windows_threads", "/windowsthreads", "/wthreads"].includes(command)) {
     const threads = await db("windows_support_threads?status=eq.open&select=id,telegram_user_id,telegram_username&order=last_message_at.desc&limit=20");
     if (!threads?.length) return send(chat, "گفت‌وگوی باز ویندوز وجود ندارد.");
     for (const thread of threads) {
@@ -450,6 +451,8 @@ async function windowsAdminMessage(message: any, state: any) {
         ]] });
     }
   }
+  return send(chat, "دستورات مدیر ویندوز:\n/orders — سفارش‌های در انتظار\n/threads — گفت‌وگوهای پشتیبانی باز");
+
 }
 async function windowsUserMessage(message: any, state: any) {
   const user = message.from, chat = message.chat.id;
@@ -643,7 +646,7 @@ async function processUpdate(update: any) {
     }
 
     const platform = await getPlatform(userId);
-    const command = text.replace(/@[^\\s]+$/, "");
+    const command = text.toLowerCase().replace(/@\\S+$/, "").split(/\\s+/)[0];
     const windowsAdminCommand = [
       "/windowsorders", "/worders", "/orders", "/windows_orders",
       "/windowsthreads", "/wthreads", "/threads", "/windows_threads"
