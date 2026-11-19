@@ -31,7 +31,7 @@ public sealed class MoghimiDeviceService
 {
     private const string ApiUrl = "https://hxfnoaeyjnkecegpppcy.supabase.co/functions/v1/windows-api";
     private const string CloudGroupId = "moghimi-cloud";
-    private const long MaxReportChunkBytes = 128L * 1024 * 1024;
+    private const long MaxReportChunkBytes = 32L * 1024 * 1024;
     private const int MaxResponseBytes = 20 * 1024 * 1024;
     private static readonly byte[] MachineEntropy = Encoding.UTF8.GetBytes("MoghimiVPN|Windows|MachineDeviceVault|v1");
     private static readonly byte[] LegacyEntropy = Encoding.UTF8.GetBytes("MoghimiVPN|Windows|LicenseVault|v1");
