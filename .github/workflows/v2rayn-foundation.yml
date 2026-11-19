@@ -54,29 +54,48 @@ jobs:
           $ErrorActionPreference = "Stop"
           ./integrations/patch-v2rayn.ps1
 
-      - name: Restore official v2rayN WPF project
+      - name: Build complete Moghimi Windows installer
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $project = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "v2rayN.csproj" | Where-Object { $_.FullName -match "[\\/]v2rayN[\\/]v2rayN[.]csproj$" } | Select-Object -First 1
-          if (-not $project) { throw "Official v2rayN project path could not be resolved." }
-          dotnet restore $project.FullName
-          if ($LASTEXITCODE -ne 0) { throw "Restore failed." }
+          & ./vendor/v2rayN/package-windows.ps1 -Arch x64 -Flavor wpf -Version "2.0.0" -Output "dist-moghimi"
+          if (-not $?) { throw "Official Windows packaging script failed." }
 
-      - name: Publish official WPF project
+      - name: Verify installer, native cores and licenses
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $project = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "v2rayN.csproj" | Where-Object { $_.FullName -match "[\\/]v2rayN[\\/]v2rayN[.]csproj$" } | Select-Object -First 1
-          if (-not $project) { throw "Official v2rayN project path could not be resolved." }
-          dotnet publish $project.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish
-          if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
+          $installer = "vendor/v2rayN/dist-moghimi/MoghimiVPN-windows-64.exe"
+          $publish = "vendor/v2rayN/.v2rayn-windows-build/publish-wpf-x64"
+          if (-not (Test-Path $installer)) { throw "Moghimi installer is missing." }
+          if ((Get-Item $installer).Length -lt 50000000) { throw "Installer is unexpectedly small; native core payload may be missing." }
+          foreach ($required in @("v2rayN.exe", "LICENSE.txt", "bin/xray/xray.exe", "bin/sing_box/sing-box.exe", "geosite.dat", "geoip.dat")) {
+            if (-not (Test-Path (Join-Path $publish $required))) { throw "Required package file is missing: $required" }
+          }
+          if (-not (Test-Path "vendor/v2rayN/LICENSE")) { throw "Upstream GPL-3.0 license is missing." }
+          if (-not (Select-String -Path "vendor/v2rayN/LICENSE" -Pattern "GNU GENERAL PUBLIC LICENSE" -Quiet)) { throw "Upstream license content is invalid." }
+          $xray = Get-Item (Join-Path $publish "bin/xray/xray.exe")
+          $singbox = Get-Item (Join-Path $publish "bin/sing_box/sing-box.exe")
+          if ($xray.Length -lt 10000000 -or $singbox.Length -lt 10000000) { throw "Native core executable size is implausibly small." }
+          Write-Host ("Installer: {0} bytes" -f (Get-Item $installer).Length)
+          Write-Host ("Xray: {0} bytes | sing-box: {1} bytes" -f $xray.Length, $singbox.Length)
 
-      - name: Verify package and license
+      - name: Smoke-test packaged desktop app
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if (-not (Test-Path "publish/v2rayN.exe")) { throw "Published v2rayN.exe is missing." }
-          Copy-Item "vendor/v2rayN/LICENSE" "publish/COPYING-v2rayN.txt" -Force
-          if (-not (Test-Path "publish/COPYING-v2rayN.txt")) { throw "GPL license was not packaged." }
-          Write-Host "v2rayN foundation publish completed."
+          $exe = (Resolve-Path "vendor/v2rayN/.v2rayn-windows-build/publish-wpf-x64/v2rayN.exe").Path
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          Start-Sleep -Seconds 7
+          $process.Refresh()
+          if ($process.HasExited) { throw "Moghimi desktop app exited during startup smoke test (code $($process.ExitCode))." }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Packaged WPF app startup smoke test passed."
+
+      - name: Upload Moghimi Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoghimiVPN-Windows-2.0.0-x64
+          path: vendor/v2rayN/dist-moghimi/MoghimiVPN-windows-64.exe
+          if-no-files-found: error
+          retention-days: 14
