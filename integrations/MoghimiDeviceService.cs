@@ -69,6 +69,7 @@ public sealed class MoghimiDeviceService
     private readonly CancellationTokenSource _lifetime = new();
     private DeviceState _state;
     private MoghimiDeviceStatus? _lastStatus;
+    private DateTimeOffset _lastStatusRefreshUtc;
     private bool _initialized;
     private Task? _usageLoop;
     private Guid _sessionId;
@@ -129,6 +130,7 @@ public sealed class MoghimiDeviceService
             using var document = await PostAsync(new { action = "free_status" }, _state.FreeDeviceToken, cancellationToken);
             var status = ParseStatus(document.RootElement);
             PublishStatus(status);
+            _lastStatusRefreshUtc = DateTimeOffset.UtcNow;
             return status;
         }
         finally
@@ -289,7 +291,9 @@ public sealed class MoghimiDeviceService
 
     private async Task UsageLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        // Report traffic frequently enough that high-throughput connections cannot
+        // build an unbounded in-memory usage backlog between quota checks.
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -313,52 +317,69 @@ public sealed class MoghimiDeviceService
         await _reportGate.WaitAsync(cancellationToken);
         try
         {
-            long pendingRx;
-            long pendingTx;
-            lock (_trafficLock)
+            while (true)
             {
-                pendingRx = _pendingRx;
-                pendingTx = _pendingTx;
+                long pendingRx;
+                long pendingTx;
+                lock (_trafficLock)
+                {
+                    pendingRx = _pendingRx;
+                    pendingTx = _pendingTx;
+                }
+
+                if (pendingRx <= 0 && pendingTx <= 0)
+                {
+                    // Do not poll Supabase every five seconds while the tunnel is idle.
+                    // Active traffic is still reported on every timer tick.
+                    if (_lastStatus is null ||
+                        DateTimeOffset.UtcNow - _lastStatusRefreshUtc >= TimeSpan.FromSeconds(30))
+                    {
+                        var fresh = await GetStatusAsync(forceRefresh: true, cancellationToken);
+                        if (!fresh.AccessAllowed) await StopForQuotaAsync();
+                    }
+                    return;
+                }
+
+                // The server accepts deltas up to 256 MiB. Use 128 MiB chunks and
+                // drain the entire backlog in this pass instead of sending just one
+                // chunk every timer interval.
+                var chunkRx = Math.Min(pendingRx, MaxReportChunkBytes);
+                var chunkTx = Math.Min(pendingTx, Math.Max(0, MaxReportChunkBytes - chunkRx));
+                var nextRx = SafeAdd(_reportedRx, chunkRx);
+                var nextTx = SafeAdd(_reportedTx, chunkTx);
+                var nextSequence = _sequence + 1;
+
+                using var document = await PostAsync(new
+                {
+                    action = "free_usage",
+                    session_id = _sessionId.ToString(),
+                    sequence = nextSequence,
+                    rx_total = nextRx,
+                    tx_total = nextTx
+                }, _state.FreeDeviceToken, cancellationToken);
+
+                var root = document.RootElement;
+                if (!root.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
+                    throw new InvalidOperationException("گزارش مصرف ویندوز از طرف سرور پذیرفته نشد.");
+
+                _sequence = nextSequence;
+                _reportedRx = nextRx;
+                _reportedTx = nextTx;
+                lock (_trafficLock)
+                {
+                    _pendingRx = Math.Max(0, _pendingRx - chunkRx);
+                    _pendingTx = Math.Max(0, _pendingTx - chunkTx);
+                }
+
+                var status = ParseStatus(root);
+                PublishStatus(status);
+                _lastStatusRefreshUtc = DateTimeOffset.UtcNow;
+                if (!status.AccessAllowed)
+                {
+                    await StopForQuotaAsync();
+                    return;
+                }
             }
-
-            if (pendingRx <= 0 && pendingTx <= 0)
-            {
-                var fresh = await GetStatusAsync(forceRefresh: true, cancellationToken);
-                if (!fresh.AccessAllowed) await StopForQuotaAsync();
-                return;
-            }
-
-            var chunkRx = Math.Min(pendingRx, MaxReportChunkBytes);
-            var chunkTx = Math.Min(pendingTx, Math.Max(0, MaxReportChunkBytes - chunkRx));
-            var nextRx = SafeAdd(_reportedRx, chunkRx);
-            var nextTx = SafeAdd(_reportedTx, chunkTx);
-            var nextSequence = _sequence + 1;
-
-            using var document = await PostAsync(new
-            {
-                action = "free_usage",
-                session_id = _sessionId.ToString(),
-                sequence = nextSequence,
-                rx_total = nextRx,
-                tx_total = nextTx
-            }, _state.FreeDeviceToken, cancellationToken);
-
-            var root = document.RootElement;
-            if (!root.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True)
-                throw new InvalidOperationException("گزارش مصرف ویندوز از طرف سرور پذیرفته نشد.");
-
-            _sequence = nextSequence;
-            _reportedRx = nextRx;
-            _reportedTx = nextTx;
-            lock (_trafficLock)
-            {
-                _pendingRx = Math.Max(0, _pendingRx - chunkRx);
-                _pendingTx = Math.Max(0, _pendingTx - chunkTx);
-            }
-
-            var status = ParseStatus(root);
-            PublishStatus(status);
-            if (!status.AccessAllowed) await StopForQuotaAsync();
         }
         finally
         {
