@@ -40,7 +40,7 @@ $packagesPath = Join-Path $upstreamRoot "v2rayN\Directory.Packages.props"
 $packageVersionOld = '    <PackageVersion Include="ReactiveUI.WPF" Version="27.0.1" />'
 $packageVersionNew = @'
     <PackageVersion Include="ReactiveUI.WPF" Version="27.0.1" />
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />
 '@
 Replace-Exact $packagesPath $packageVersionOld $packageVersionNew "pin DPAPI ProtectedData package version"
 
