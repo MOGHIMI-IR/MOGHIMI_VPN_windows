@@ -7,6 +7,10 @@ using ServiceLib.Handler.Data;
 using ServiceLib.Handler.SysProxy;
 using ServiceLib.Models.Entities;
 
+// This integration is compiled into the Windows WPF flavor only. ServiceLib itself
+// is shared by upstream targets, so platform analyzers cannot infer the flavor gate.
+#pragma warning disable CA1416
+
 namespace ServiceLib.Manager;
 
 public sealed class MoghimiDeviceStatus
