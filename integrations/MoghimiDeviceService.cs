@@ -563,7 +563,12 @@ public sealed class MoghimiDeviceService
         if (!string.IsNullOrWhiteSpace(machineGuid))
         {
             var digest = SHA256.HashData(Encoding.UTF8.GetBytes("MoghimiVPN-Device|" + machineGuid));
-            return new Guid(digest.AsSpan(0, 16)).ToString("D");
+
+            // Emit a deterministic RFC 4122 v5-shaped UUID so the API's UUID
+            // version/variant validation accepts the stable machine identifier.
+            digest[7] = (byte)((digest[7] & 0x0F) | 0x50);
+            digest[8] = (byte)((digest[8] & 0x3F) | 0x80);
+            return new Guid(digest.AsSpan(0, 16)).ToString("D").ToLowerInvariant();
         }
 
         return Guid.NewGuid().ToString("D");
