@@ -36,6 +36,22 @@ function Replace-Within-Section {
     [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
 }
 
+$packagesPath = Join-Path $upstreamRoot "v2rayN\Directory.Packages.props"
+$packageVersionOld = '    <PackageVersion Include="ReactiveUI.WPF" Version="27.0.1" />'
+$packageVersionNew = @'
+    <PackageVersion Include="ReactiveUI.WPF" Version="27.0.1" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+'@
+Replace-Exact $packagesPath $packageVersionOld $packageVersionNew "pin DPAPI ProtectedData package version"
+
+$serviceProjectPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ServiceLib.csproj"
+$packageRefOld = '        <PackageReference Include="NLog" />'
+$packageRefNew = @'
+        <PackageReference Include="NLog" />
+        <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+'@
+Replace-Exact $serviceProjectPath $packageRefOld $packageRefNew "reference DPAPI package from ServiceLib"
+
 $serviceTarget = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\MoghimiDeviceService.cs"
 Copy-Item $serviceSource $serviceTarget -Force
 
