@@ -70,7 +70,7 @@ AS $function$
 DECLARE
   v_device public.windows_free_devices%rowtype;
   v_month date:=date_trunc('month',timezone('UTC',now()))::date;
-  v_limit bigint:=7516192768;
+  v_limit bigint:=8589934592; -- 8 GiB, independent Windows allowance
   v_free_remaining bigint;
   v_paid_remaining bigint:=0;
   v_paid_used bigint:=0;
@@ -118,7 +118,7 @@ DECLARE
   v_usage public.windows_free_usage_sessions%rowtype;
   v_sub public.windows_subscriptions%rowtype;
   v_month date:=date_trunc('month',timezone('UTC',now()))::date;
-  v_limit bigint:=7516192768;
+  v_limit bigint:=8589934592;
   v_delta bigint;
   v_free_remaining bigint;
   v_free_delta bigint;
