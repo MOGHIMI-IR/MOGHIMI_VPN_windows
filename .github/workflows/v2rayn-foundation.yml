@@ -9,13 +9,11 @@ on:
       - "integrations/**"
       - ".github/workflows/v2rayn-foundation.yml"
       - "V2RAYN_FOUNDATION.md"
+      - "supabase/**"
   workflow_dispatch:
 
 permissions:
   contents: read
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 concurrency:
   group: v2rayn-foundation-${{ github.ref }}
@@ -26,13 +24,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout including upstream submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -56,6 +54,17 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           ./integrations/patch-v2rayn.ps1
+
+      - name: Verify Windows quota definitions stay aligned
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $service = Get-Content "integrations/MoghimiDeviceService.cs" -Raw
+          $initialMigration = Get-Content "supabase/migrations/20261118202648_windows_independent_free_quota.sql" -Raw
+          $quotaMigration = Get-Content "supabase/migrations/20261118231021_windows_quota_8_gib.sql" -Raw
+          if ($service -notmatch "8L \\* 1024 \\* 1024 \\* 1024") { throw "Windows client fallback quota is not 8 GiB." }
+          if ($initialMigration -notmatch "8589934592" -or $quotaMigration -notmatch "8589934592") { throw "Windows database migrations do not define the 8 GiB quota." }
+          Write-Host "Windows client and database quota definitions are aligned at 8 GiB."
 
       - name: Build complete Moghimi Windows installer
         shell: pwsh
@@ -96,7 +105,7 @@ jobs:
           Write-Host "Packaged WPF app startup smoke test passed."
 
       - name: Upload Moghimi Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MoghimiVPN-Windows-2.0.0-x64
           path: vendor/v2rayN/dist-moghimi/MoghimiVPN-windows-64.exe
