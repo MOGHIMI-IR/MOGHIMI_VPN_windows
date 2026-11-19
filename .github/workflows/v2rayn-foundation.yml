@@ -6,6 +6,7 @@ on:
     paths:
       - ".gitmodules"
       - "vendor/**"
+      - "integrations/**"
       - ".github/workflows/v2rayn-foundation.yml"
       - "V2RAYN_FOUNDATION.md"
   workflow_dispatch:
@@ -46,6 +47,13 @@ jobs:
           if ($head -ne $expected) { throw "v2rayN submodule pin mismatch: $head" }
           $hotkeysProject = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "GlobalHotKeys.csproj" | Select-Object -First 1
           if (-not $hotkeysProject) { throw "Nested GlobalHotKeys submodule is missing." }
+
+      - name: Apply Moghimi integration and visual patches
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          ./integrations/patch-v2rayn.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Moghimi integration patch failed." }
 
       - name: Restore official v2rayN WPF project
         shell: pwsh
