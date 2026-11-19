@@ -45,9 +45,9 @@ $packageVersionNew = @'
 Replace-Exact $packagesPath $packageVersionOld $packageVersionNew "pin DPAPI ProtectedData package version"
 
 $serviceProjectPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ServiceLib.csproj"
-$packageRefOld = '        <PackageReference Include="sqlite-net-e" />'
+$packageRefOld = '<PackageReference Include="sqlite-net-e" />'
 $packageRefNew = @'
-        <PackageReference Include="sqlite-net-e" />
+<PackageReference Include="sqlite-net-e" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" />
 '@
 Replace-Exact $serviceProjectPath $packageRefOld $packageRefNew "reference DPAPI package from ServiceLib"
