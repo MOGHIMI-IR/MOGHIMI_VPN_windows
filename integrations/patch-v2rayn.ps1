@@ -362,6 +362,38 @@ $titleNew = @'
 Replace-Exact $mainXamlPath $titleOld $titleNew "brand app window title"
 
 
+
+
+$gridOld = @'
+        <Grid>
+            <DockPanel>
+'@
+$gridNew = @'
+        <Grid ClipToBounds="True">
+            <Ellipse x:Name="MoghimiGlowLeft"
+                     Width="430" Height="430"
+                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                     Margin="-170,-190,0,0"
+                     Fill="#553C6BFF" Opacity="0.18"
+                     IsHitTestVisible="False">
+                <Ellipse.Effect>
+                    <BlurEffect Radius="90" />
+                </Ellipse.Effect>
+            </Ellipse>
+            <Ellipse x:Name="MoghimiGlowRight"
+                     Width="500" Height="500"
+                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                     Margin="0,0,-220,-260"
+                     Fill="#554B2AAE" Opacity="0.16"
+                     IsHitTestVisible="False">
+                <Ellipse.Effect>
+                    <BlurEffect Radius="110" />
+                </Ellipse.Effect>
+            </Ellipse>
+            <DockPanel>
+'@
+Replace-Exact $mainXamlPath $gridOld $gridNew "add ambient motion glow layers"
+
 # Wrap the main application content in one translucent glass surface.
 $mainWindowText = [System.IO.File]::ReadAllText($mainXamlPath)
 $gridMarker = '<Grid ClipToBounds="True">'
@@ -403,36 +435,6 @@ $sizeNew = @'
     MinHeight="680"
 '@
 Replace-Exact $mainXamlPath $sizeOld $sizeNew "set premium desktop window dimensions"
-
-$gridOld = @'
-        <Grid>
-            <DockPanel>
-'@
-$gridNew = @'
-        <Grid ClipToBounds="True">
-            <Ellipse x:Name="MoghimiGlowLeft"
-                     Width="430" Height="430"
-                     HorizontalAlignment="Left" VerticalAlignment="Top"
-                     Margin="-170,-190,0,0"
-                     Fill="#553C6BFF" Opacity="0.18"
-                     IsHitTestVisible="False">
-                <Ellipse.Effect>
-                    <BlurEffect Radius="90" />
-                </Ellipse.Effect>
-            </Ellipse>
-            <Ellipse x:Name="MoghimiGlowRight"
-                     Width="500" Height="500"
-                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                     Margin="0,0,-220,-260"
-                     Fill="#554B2AAE" Opacity="0.16"
-                     IsHitTestVisible="False">
-                <Ellipse.Effect>
-                    <BlurEffect Radius="110" />
-                </Ellipse.Effect>
-            </Ellipse>
-            <DockPanel>
-'@
-Replace-Exact $mainXamlPath $gridOld $gridNew "add ambient motion glow layers"
 
 $toolbarAnchor = @'
                         <materialDesign:PopupBox
