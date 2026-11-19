@@ -12,7 +12,7 @@ on:
       - "MOGHIMI-UPSTREAM.md"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: moghimi-v2rayn-ci-${{ github.ref }}
@@ -72,18 +72,36 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows publish failed." }
           if (!(Test-Path "./artifacts/v2rayN-Windows-x64/v2rayN.exe")) { throw "Published v2rayN.exe is missing." }
 
-      - name: Download official v2rayN Windows core bundle
+      - name: Download and merge pinned official v2rayN core bundle
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $coreZip = Join-Path $env:RUNNER_TEMP "v2rayN-windows-64.zip"
-          $coreUrl = "https://github.com/2dust/v2rayN-core-bin/raw/refs/heads/master/v2rayN-windows-64.zip"
+          $coreExtract = Join-Path $env:RUNNER_TEMP "v2rayN-core-extract"
+          $coreCommit = "f303f1309cfd1c26ba2362ac597fc648e8041b7f"
+          $coreUrl = "https://raw.githubusercontent.com/2dust/v2rayN-core-bin/$coreCommit/v2rayN-windows-64.zip"
           Invoke-WebRequest -Uri $coreUrl -OutFile $coreZip
           if (!(Test-Path $coreZip) -or (Get-Item $coreZip).Length -lt 50000000) {
-            throw "Official v2rayN Windows core bundle download is incomplete."
+            throw "Pinned official v2rayN Windows core bundle download is incomplete."
           }
+
+          Expand-Archive -Path $coreZip -DestinationPath $coreExtract -Force
+          $coreBin = Get-ChildItem -Path $coreExtract -Directory -Recurse |
+            Where-Object {
+              $_.Name -eq "bin" -and
+              (Test-Path (Join-Path $_.FullName "xray/xray.exe")) -and
+              (Test-Path (Join-Path $_.FullName "sing_box/sing-box.exe"))
+            } |
+            Select-Object -First 1
+          if ($null -eq $coreBin) {
+            throw "The official core archive does not contain the expected Xray and sing-box binaries."
+          }
+
           $publishOutput = Join-Path $PWD "artifacts/v2rayN-Windows-x64"
-          Expand-Archive -Path $coreZip -DestinationPath $publishOutput -Force
+          $targetBin = Join-Path $publishOutput "bin"
+          New-Item -ItemType Directory -Force $targetBin | Out-Null
+          Copy-Item -Path (Join-Path $coreBin.FullName "*") -Destination $targetBin -Recurse -Force
+
           $required = @(
             "bin/xray/xray.exe",
             "bin/xray/wintun.dll",
@@ -97,19 +115,73 @@ jobs:
           foreach ($relativePath in $required) {
             $fullPath = Join-Path $publishOutput $relativePath
             if (!(Test-Path $fullPath)) {
-              throw "Required core runtime file is missing: $relativePath"
+              throw "Required core runtime file is missing after merge: $relativePath"
             }
           }
-          Write-Host "Official Xray, sing-box, Mihomo, Wintun and routing data are bundled."
-          Compress-Archive -Path (Join-Path $publishOutput "*") -DestinationPath (Join-Path $PWD "artifacts/Moghimi-v2rayN-Windows-x64.zip") -CompressionLevel Optimal
-          if (!(Test-Path "./artifacts/Moghimi-v2rayN-Windows-x64.zip")) { throw "Final Windows bundle ZIP was not produced." }
+
+          $readme = @'
+          MOGHIMI VPN FOR WINDOWS
+          
+          1. Extract this ZIP to a normal user-writable folder.
+          2. Run v2rayN.exe.
+          3. Use "همگام‌سازی سرورها" to load the active Moghimi catalog.
+          4. Select a server, then choose "اتصال امن".
+          5. The Windows quota is independent: 8 GiB per UTC calendar month.
+          
+          Device identity and its quota are stored separately from the program folder.
+          Do not delete %LOCALAPPDATA%\MoghimiVPN if you want to preserve this device identity.
+          
+          The app is based on the GPL-3.0 v2rayN project. See LICENSE and MOGHIMI-UPSTREAM.md.
+          '@
+          Set-Content -Path (Join-Path $publishOutput "MOGHIMI-README.txt") -Value $readme -Encoding utf8
+          Copy-Item "./MOGHIMI-UPSTREAM.md" (Join-Path $publishOutput "MOGHIMI-UPSTREAM.md") -Force
+
+          $archive = Join-Path $PWD "artifacts/Moghimi-v2rayN-Windows-x64.zip"
+          if (Test-Path $archive) { Remove-Item $archive -Force }
+          Compress-Archive -Path (Join-Path $publishOutput "*") -DestinationPath $archive -CompressionLevel Optimal
+          if (!(Test-Path $archive) -or (Get-Item $archive).Length -lt 50000000) {
+            throw "Final full Windows bundle ZIP was not produced correctly."
+          }
+          Get-FileHash $archive -Algorithm SHA256 | Format-List
+          Write-Host "The WPF app, Xray, sing-box, Mihomo, Wintun and routing data are bundled."
 
       - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Moghimi-v2rayN-Windows-x64-Full
-          path: |
-            ./artifacts/v2rayN-Windows-x64
-            ./artifacts/Moghimi-v2rayN-Windows-x64.zip
+          path: ./artifacts/Moghimi-v2rayN-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish downloadable beta release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "moghimi-v1.0.0-beta.1"
+          $asset = "./artifacts/Moghimi-v2rayN-Windows-x64.zip"
+          $notes = @'
+          Moghimi VPN for Windows — Beta 1
+          
+          - Based on the official v2rayN 7.25.6 WPF client.
+          - Bundles official Xray, sing-box and Mihomo Windows cores.
+          - Adds the Moghimi glass dashboard, independent Windows device identity,
+            cloud server sync, per-device traffic meter and 8 GiB monthly free quota.
+          - Windows quota is independent from Android and resets by UTC calendar month.
+          
+          This is a beta build. Please report connection issues with the app log.
+          '@
+          $notesPath = Join-Path $env:RUNNER_TEMP "moghimi-release-notes.md"
+          Set-Content -Path $notesPath -Value $notes -Encoding utf8
+          gh release view $tag --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $asset --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Could not update the Moghimi beta release asset." }
+            gh release edit $tag --title "Moghimi VPN for Windows 1.0.0 Beta 1" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Could not update the Moghimi beta release notes." }
+          }
+          else {
+            gh release create $tag $asset --title "Moghimi VPN for Windows 1.0.0 Beta 1" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Could not publish the Moghimi beta release." }
+          }
