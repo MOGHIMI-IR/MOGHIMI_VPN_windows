@@ -174,6 +174,7 @@ $profilesNew = @'
         var canEditSub = this.WhenAnyValue(
            x => x.SelectedSub,
            selectedSource => selectedSource != null &&
+               !selectedSource.Id.IsNullOrEmpty() &&
                selectedSource.Id != "moghimi-cloud");
 '@
 Replace-Exact $profilesVmPath $profilesOld $profilesNew "separate cloud profile connect and edit permissions"
@@ -304,6 +305,20 @@ $groupAllNew = @'
 '@
 Replace-Exact $profilesVmPath $groupAllOld $groupAllNew "prevent cloning protected cloud profiles into exportable groups"
 
+
+$appManagerPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\AppManager.cs"
+$languageOld = '        Thread.CurrentThread.CurrentUICulture = new(CurrentConfig.UiItem.CurrentLanguage);'
+$languageNew = @'
+        CurrentConfig.UiItem.CurrentLanguage = "fa";
+        Thread.CurrentThread.CurrentUICulture = new("fa");
+'@
+Replace-Exact $appManagerPath $languageOld $languageNew "set Persian UI culture"
+
+$configFontsPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Converters\MaterialDesignFonts.cs"
+$fontOld = '        MyFont ??= new FontFamily("Microsoft YaHei");'
+$fontNew = '        MyFont ??= new FontFamily("Tahoma");'
+Replace-Exact $configFontsPath $fontOld $fontNew "use Persian-capable fallback font"
+
 $appPath = Join-Path $upstreamRoot "v2rayN\v2rayN\App.xaml"
 $appOld = @'
                     BaseTheme="Light"
@@ -340,8 +355,54 @@ Replace-Within-Section $appPath 'x:Key="WindowGlobal"' 'x:Key="ViewGlobal"' $win
 
 $mainXamlPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Views\MainWindow.xaml"
 $titleOld = '    Title="v2rayN"'
-$titleNew = '    Title="Moghimi VPN | Windows"'
+$titleNew = @'
+    Title="Moghimi VPN | Windows"
+    FlowDirection="RightToLeft"
+'@
 Replace-Exact $mainXamlPath $titleOld $titleNew "brand app window title"
+
+
+# Wrap the main application content in one translucent glass surface.
+$mainWindowText = [System.IO.File]::ReadAllText($mainXamlPath)
+$gridMarker = '<Grid ClipToBounds="True">'
+$gridAt = $mainWindowText.IndexOf($gridMarker, [System.StringComparison]::Ordinal)
+$dialogEnd = $mainWindowText.IndexOf('</materialDesign:DialogHost>', $gridAt, [System.StringComparison]::Ordinal)
+if ($gridAt -lt 0 -or $dialogEnd -lt 0) { throw "Main window root content could not be located for the glass surface." }
+$rootSection = $mainWindowText.Substring($gridAt, $dialogEnd - $gridAt)
+if (-not $rootSection.Contains('x:Name="MoghimiGlassBorder"')) {
+    $dockStart = $rootSection.IndexOf('<DockPanel>', [System.StringComparison]::Ordinal)
+    $dockEnd = $rootSection.LastIndexOf('</DockPanel>', [System.StringComparison]::Ordinal)
+    if ($dockStart -lt 0 -or $dockEnd -lt $dockStart) { throw "Main DockPanel was not found for the glass surface." }
+    $glassOpen = @'
+<Border x:Name="MoghimiGlassBorder"
+        Margin="12"
+        CornerRadius="20"
+        BorderThickness="1"
+        BorderBrush="#667DA8FF"
+        Background="#1BFFFFFF">
+    <Border.Effect>
+        <DropShadowEffect BlurRadius="26" ShadowDepth="0" Opacity="0.28" Color="#FF5C55C9" />
+    </Border.Effect>
+'@
+    $glassClose = '</Border>'
+    $rootSection = $rootSection.Insert($dockEnd + '</DockPanel>'.Length, $glassClose)
+    $rootSection = $rootSection.Insert($dockStart, $glassOpen)
+    $mainWindowText = $mainWindowText.Substring(0, $gridAt) + $rootSection + $mainWindowText.Substring($dialogEnd)
+    [System.IO.File]::WriteAllText($mainXamlPath, $mainWindowText, [System.Text.UTF8Encoding]::new($false))
+}
+
+$sizeOld = @'
+    Width="1200"
+    Height="800"
+    MinWidth="800"
+'@
+$sizeNew = @'
+    Width="1360"
+    Height="860"
+    MinWidth="980"
+    MinHeight="680"
+'@
+Replace-Exact $mainXamlPath $sizeOld $sizeNew "set premium desktop window dimensions"
 
 $gridOld = @'
         <Grid>
@@ -482,9 +543,15 @@ $methods = @'
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever
         };
+        var glassPulse = new DoubleAnimation(0.94, 1.0, TimeSpan.FromSeconds(4.5))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever
+        };
 
         MoghimiGlowLeft.BeginAnimation(OpacityProperty, pulseLeft);
         MoghimiGlowRight.BeginAnimation(OpacityProperty, pulseRight);
+        MoghimiGlassBorder.BeginAnimation(OpacityProperty, glassPulse);
         MoghimiGlowRight.RenderTransform = new TranslateTransform();
         MoghimiGlowRight.RenderTransform.BeginAnimation(TranslateTransform.XProperty, drift);
     }
@@ -508,6 +575,7 @@ $methods = @'
         try
         {
             var imported = await MoghimiDeviceService.Instance.SyncProfilesAsync();
+            await ViewModel.ProfilesViewModel.RefreshSubscriptions();
             await ViewModel.ProfilesViewModel.RefreshServersBiz();
             await ViewModel.StatusBarViewModel.RefreshServersBiz();
             NoticeManager.Instance.Enqueue($"همگام‌سازی انجام شد؛ {imported} سرور مقیمی به‌روزرسانی شد.");
