@@ -1,0 +1,3 @@
+[submodule "vendor/v2rayN"]
+	path = vendor/v2rayN
+	url = https://github.com/2dust/v2rayN.git

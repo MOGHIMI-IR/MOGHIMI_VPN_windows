@@ -1,0 +1,61 @@
+name: v2rayN foundation build
+
+on:
+  push:
+    branches: [ v2rayn-foundation ]
+    paths:
+      - ".gitmodules"
+      - "vendor/**"
+      - ".github/workflows/v2rayn-foundation.yml"
+      - "V2RAYN_FOUNDATION.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2rayn-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout including upstream submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Verify pinned upstream source and license
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path "vendor/v2rayN/LICENSE")) { throw "The upstream GPL-3.0 license is missing." }
+          if (-not (Test-Path "vendor/v2rayN/v2rayN/v2rayN.csproj")) { throw "The official WPF project was not checked out." }
+          $head = git -C vendor/v2rayN rev-parse HEAD
+          $expected = "2b5c7ca75b9163ec49cb4941b18388a061c3d96d"
+          if ($head -ne $expected) { throw "v2rayN submodule pin mismatch: $head" }
+          if (-not (Test-Path "vendor/v2rayN/GlobalHotKeys/src/GlobalHotKeys/GlobalHotKeys.csproj")) {
+            throw "Nested GlobalHotKeys submodule is missing."
+          }
+
+      - name: Restore official v2rayN WPF project
+        run: dotnet restore vendor/v2rayN/v2rayN/v2rayN.csproj
+
+      - name: Publish official WPF project
+        run: dotnet publish vendor/v2rayN/v2rayN/v2rayN.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish
+
+      - name: Verify package and license
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path "publish/v2rayN.exe")) { throw "Published v2rayN.exe is missing." }
+          Copy-Item "vendor/v2rayN/LICENSE" "publish/COPYING-v2rayN.txt" -Force
+          if (-not (Test-Path "publish/COPYING-v2rayN.txt")) { throw "GPL license was not packaged." }
+          Write-Host "v2rayN foundation publish completed."
