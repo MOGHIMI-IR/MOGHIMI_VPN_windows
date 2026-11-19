@@ -351,16 +351,20 @@ public partial class MainWindow
 
     private async void MoghimiConnectButton_Click(object sender, RoutedEventArgs e)
     {
+        MoghimiConnectButton.IsEnabled = false;
         try
         {
             var statusBar = ViewModel.StatusBarViewModel;
             var currentlyConnected =
-                statusBar.SystemProxySelected == (int)ESysProxyType.ForcedChange || statusBar.EnableTun;
+                statusBar.SystemProxySelected == (int)ESysProxyType.ForcedChange ||
+                statusBar.EnableTun ||
+                CoreManager.Instance.IsCoreProcessRunning;
 
             if (currentlyConnected)
             {
-                statusBar.SystemProxySelected = (int)ESysProxyType.ForcedClear;
                 statusBar.EnableTun = false;
+                statusBar.SystemProxySelected = (int)ESysProxyType.ForcedClear;
+                await CoreManager.Instance.CoreStop();
                 SetMoghimiVisualState(false);
                 return;
             }
@@ -368,12 +372,27 @@ public partial class MainWindow
             if (!await _moghimi.EnsureAccessAsync(CancellationToken.None, forceRefresh: true))
                 throw new InvalidOperationException("سهمیه ۸ گیگابایتی و حجم اشتراک خریداری‌شده تمام شده است.");
 
+            var selectedProfile = ViewModel.ProfilesViewModel.SelectedProfile;
+            if (selectedProfile is null || string.IsNullOrWhiteSpace(selectedProfile.IndexId))
+                throw new InvalidOperationException("ابتدا یک سرور را از فهرست انتخاب کن یا سرورهای مقیمی را همگام‌سازی کن.");
+
+            await ViewModel.ProfilesViewModel.SetDefaultServer(selectedProfile.IndexId);
+            await ViewModel.Reload();
+
+            if (!CoreManager.Instance.IsCoreProcessRunning)
+                throw new InvalidOperationException("هسته اتصال اجرا نشد؛ گزارش برنامه را برای خطای ساخت کانفیگ بررسی کن.");
+
             statusBar.SystemProxySelected = (int)ESysProxyType.ForcedChange;
             SetMoghimiVisualState(true);
         }
         catch (Exception ex)
         {
+            SetMoghimiVisualState(false);
             MessageBox.Show(ex.Message, "اتصال مقیمی برقرار نشد", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            MoghimiConnectButton.IsEnabled = true;
         }
     }
 

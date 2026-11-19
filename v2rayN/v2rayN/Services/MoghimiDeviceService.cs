@@ -27,7 +27,7 @@ public sealed class MoghimiDeviceService : IDisposable
     private const string ApiUrl = "https://hxfnoaeyjnkecegpppcy.supabase.co/functions/v1/windows-api";
     private const string PublishableKey = "sb_publishable_nqjUZPJ_cr_SfzDntkbsLg_v6oaJNqY";
     private const long DefaultFreeLimitBytes = 8L * 1024 * 1024 * 1024;
-    private const long MaxUsageChunkBytes = 128L * 1024 * 1024;
+    private const long MaxUsageChunkBytes = 64L * 1024 * 1024;
     private const int MaxResponseBytes = 20 * 1024 * 1024;
 
     private static readonly HttpClient Http = new(
@@ -75,6 +75,7 @@ public sealed class MoghimiDeviceService : IDisposable
     private long _pendingSequence;
     private bool _hasPendingUsage;
     private long _lastTrafficTick;
+    private DateTimeOffset _lastSuccessfulUsageReportAt = DateTimeOffset.UtcNow;
 
     public static MoghimiDeviceService Instance { get; } = new();
 
@@ -101,7 +102,7 @@ public sealed class MoghimiDeviceService : IDisposable
     public void Start()
     {
         if (_disposed || _timer is not null) return;
-        _timer = new Timer(_ => _ = TimerTickAsync(), null, TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(8));
+        _timer = new Timer(_ => _ = TimerTickAsync(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
         _ = RefreshStatusInBackgroundAsync();
     }
 
@@ -116,13 +117,22 @@ public sealed class MoghimiDeviceService : IDisposable
                     encrypted,
                     Encoding.UTF8.GetBytes("MoghimiVPN|Windows|LicenseVault|v1"),
                     DataProtectionScope.CurrentUser);
+                using var authDocument = JsonDocument.Parse(clear);
+                var hadFreeToken = authDocument.RootElement.TryGetProperty("FreeDeviceToken", out var storedFreeToken);
                 var existing = JsonSerializer.Deserialize<PersistedAuth>(clear)
                     ?? throw new InvalidDataException("شناسه دستگاه ویندوز قابل بازیابی نیست.");
-                if (!Guid.TryParse(existing.InstallationId, out _) ||
-                    existing.FreeDeviceToken.Length != 64 ||
-                    !existing.FreeDeviceToken.All(Uri.IsHexDigit))
+                if (!Guid.TryParse(existing.InstallationId, out _))
+                    throw new InvalidDataException("شناسه نصب ذخیره‌شده ویندوز معتبر نیست.");
+
+                if (!hadFreeToken || storedFreeToken.ValueKind != JsonValueKind.String ||
+                    storedFreeToken.GetString() is not { Length: 64 } savedToken ||
+                    !savedToken.All(Uri.IsHexDigit))
                 {
-                    throw new InvalidDataException("اطلاعات هویت دستگاه ویندوز معتبر نیست.");
+                    // Upgrade the earlier DPAPI file without changing the stable installation ID
+                    // or the paid activation token already associated with this machine.
+                    existing.FreeDeviceToken =
+                        Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+                    PersistIdentity(existing);
                 }
                 return existing;
             }
@@ -334,6 +344,13 @@ public sealed class MoghimiDeviceService : IDisposable
         catch (Exception ex)
         {
             Logging.SaveLog("MoghimiUsage", ex);
+            var unreported = Math.Max(0, SessionDownloadBytes - Interlocked.Read(ref _ackedRxBytes))
+                + Math.Max(0, SessionUploadBytes - Interlocked.Read(ref _ackedTxBytes));
+            if (unreported > 0 &&
+                DateTimeOffset.UtcNow - _lastSuccessfulUsageReportAt > TimeSpan.FromSeconds(15))
+            {
+                NotifyAccessBlocked("گزارش مصرف به سرور مقیمی ارسال نمی‌شود؛ برای جلوگیری از مصرف خارج از سهمیه اتصال متوقف شد.");
+            }
         }
     }
 
@@ -380,6 +397,7 @@ public sealed class MoghimiDeviceService : IDisposable
                 _ackedTxBytes = _pendingTxTarget;
                 _sequence = _pendingSequence;
                 _hasPendingUsage = false;
+                _lastSuccessfulUsageReportAt = DateTimeOffset.UtcNow;
 
                 var status = ParseStatus(response.RootElement);
                 SetStatus(status);
