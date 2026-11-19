@@ -198,6 +198,32 @@ $editSubNew = @'
 '@
 Replace-Exact $profilesVmPath $editSubOld $editSubNew "protect the Moghimi cloud group from edit/delete"
 
+$updateVmPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ViewModels\CheckUpdateViewModel.cs"
+$upstreamUpdateGuardOld = 'if (coreType == _v2rayN && Utils.IsPackagedInstall())'
+$upstreamUpdateGuardNew = 'if (coreType == _v2rayN)'
+Replace-Exact $updateVmPath $upstreamUpdateGuardOld $upstreamUpdateGuardNew "prevent upstream app self-updates"
+
+$upstreamUpdateOld = @'
+            else if (item.CoreType == _v2rayN)
+            {
+                if (Utils.IsPackagedInstall())
+                {
+                    await UpdateView(_v2rayN, ResUI.MsgNotSupport);
+                    continue;
+                }
+                await CheckUpdateN(item.IsCheckPreRelease);
+            }
+'@
+$upstreamUpdateNew = @'
+            else if (item.CoreType == _v2rayN)
+            {
+                // The Moghimi fork must only update from its own signed release channel.
+                await UpdateView(_v2rayN, "بروزرسانی برنامه از مسیر انتشار Moghimi انجام می‌شود.");
+                continue;
+            }
+'@
+Replace-Exact $updateVmPath $upstreamUpdateOld $upstreamUpdateNew "disable upstream GUI updater"
+
 $appPath = Join-Path $upstreamRoot "v2rayN\v2rayN\App.xaml"
 $appOld = @'
                     BaseTheme="Light"
