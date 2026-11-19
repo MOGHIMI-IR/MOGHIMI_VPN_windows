@@ -187,10 +187,15 @@ public sealed class MoghimiDeviceService
         }
 
         await EnsureCloudGroupAsync();
-        await ConfigDbHandler.RemoveServersViaSubid(CloudGroupId, isSub: true);
-        await ConfigDbHandler.MoveToGroup(stagedProfiles, CloudGroupId);
-        await ConfigDbHandler.RemoveServersViaSubid(stageId, isSub: true);
 
+        // Import into a staging group first. Only replace the visible cloud set after
+        // at least one valid profile has been parsed and the new group assignment succeeds.
+        var oldProfiles = await ConfigDbQuery.ProfileItems(CloudGroupId) ?? [];
+        await ConfigDbHandler.MoveToGroup(stagedProfiles, CloudGroupId);
+        if (oldProfiles.Count > 0)
+            await ConfigDbHandler.RemoveServers(oldProfiles);
+
+        await ConfigDbHandler.RemoveServersViaSubid(stageId, isSub: true);
         return stagedProfiles.Count;
     }
 
