@@ -69,7 +69,7 @@ jobs:
           $publish = "vendor/v2rayN/.v2rayn-windows-build/publish-wpf-x64"
           if (-not (Test-Path $installer)) { throw "Moghimi installer is missing." }
           if ((Get-Item $installer).Length -lt 50000000) { throw "Installer is unexpectedly small; native core payload may be missing." }
-          foreach ($required in @("v2rayN.exe", "LICENSE.txt", "bin/xray/xray.exe", "bin/sing_box/sing-box.exe", "geosite.dat", "geoip.dat")) {
+          foreach ($required in @("v2rayN.exe", "LICENSE.txt", "bin/xray/xray.exe", "bin/sing_box/sing-box.exe", "bin/geosite.dat", "bin/geoip.dat")) {
             if (-not (Test-Path (Join-Path $publish $required))) { throw "Required package file is missing: $required" }
           }
           if (-not (Test-Path "vendor/v2rayN/LICENSE")) { throw "Upstream GPL-3.0 license is missing." }
