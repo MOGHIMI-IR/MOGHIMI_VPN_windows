@@ -674,4 +674,119 @@ if ($lastBrace -lt 0) { throw "MainWindow class closing brace was not found." }
 $csText = $csText.Insert($lastBrace, $methods + [Environment]::NewLine)
 [System.IO.File]::WriteAllText($mainCsPath, $csText, [System.Text.UTF8Encoding]::new($false))
 
+
+function New-MoghimiIcon {
+    Add-Type -AssemblyName System.Drawing
+    $iconPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Resources\v2rayN.ico"
+    $pngPath = Join-Path ([System.IO.Path]::GetTempPath()) ("moghimi-icon-" + [Guid]::NewGuid().ToString("N") + ".png")
+    $bitmap = [System.Drawing.Bitmap]::new(256, 256, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    try {
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $path = [System.Drawing.Drawing2D.GraphicsPath]::new()
+        $path.AddArc(12, 12, 48, 48, 180, 90)
+        $path.AddArc(196, 12, 48, 48, 270, 90)
+        $path.AddArc(196, 196, 48, 48, 0, 90)
+        $path.AddArc(12, 196, 48, 48, 90, 90)
+        $path.CloseFigure()
+        $bg = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
+            [System.Drawing.Rectangle]::new(0, 0, 256, 256),
+            [System.Drawing.Color]::FromArgb(255, 8, 14, 30),
+            [System.Drawing.Color]::FromArgb(255, 39, 28, 84),
+            35
+        )
+        $graphics.FillPath($bg, $path)
+        $rim = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(220, 92, 199, 255), 4)
+        $graphics.DrawPath($rim, $path)
+
+        $shield = [System.Drawing.Point[]]@(
+            [System.Drawing.Point]::new(128, 38),
+            [System.Drawing.Point]::new(194, 65),
+            [System.Drawing.Point]::new(184, 142),
+            [System.Drawing.Point]::new(128, 202),
+            [System.Drawing.Point]::new(72, 142),
+            [System.Drawing.Point]::new(62, 65)
+        )
+        $shieldFill = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(78, 76, 207, 255))
+        $graphics.FillPolygon($shieldFill, $shield)
+        $shieldPen = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(230, 111, 213, 255), 5)
+        $graphics.DrawPolygon($shieldPen, $shield)
+
+        $mPen = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(255, 238, 246, 255), 17)
+        $mPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $mPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $mPen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+        $m = [System.Drawing.Point[]]@(
+            [System.Drawing.Point]::new(91, 145),
+            [System.Drawing.Point]::new(91, 96),
+            [System.Drawing.Point]::new(128, 132),
+            [System.Drawing.Point]::new(165, 96),
+            [System.Drawing.Point]::new(165, 145)
+        )
+        $graphics.DrawLines($mPen, $m)
+        $accent = [System.Drawing.Pen]::new([System.Drawing.Color]::FromArgb(255, 67, 229, 225), 7)
+        $accent.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $accent.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $graphics.DrawLine($accent, 109, 166, 147, 166)
+
+        $bitmap.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
+        $png = [System.IO.File]::ReadAllBytes($pngPath)
+        $stream = [System.IO.File]::Create($iconPath)
+        $writer = [System.IO.BinaryWriter]::new($stream)
+        try {
+            $writer.Write([UInt16]0)
+            $writer.Write([UInt16]1)
+            $writer.Write([UInt16]1)
+            $writer.Write([byte]0)
+            $writer.Write([byte]0)
+            $writer.Write([byte]0)
+            $writer.Write([byte]0)
+            $writer.Write([UInt16]1)
+            $writer.Write([UInt16]32)
+            $writer.Write([UInt32]$png.Length)
+            $writer.Write([UInt32]22)
+            $writer.Write($png)
+        }
+        finally {
+            $writer.Dispose()
+            $stream.Dispose()
+        }
+    }
+    finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+        if (Test-Path $pngPath) { Remove-Item $pngPath -Force }
+    }
+}
+
+New-MoghimiIcon
+
+$packageScriptPath = Join-Path $upstreamRoot "package-windows.ps1"
+$packageText = [System.IO.File]::ReadAllText($packageScriptPath)
+$packageReplacements = @(
+    @('v2rayN Setup', 'Moghimi VPN Setup'),
+    @('v2rayN setup', 'Moghimi VPN setup'),
+    @('v2rayN is installed', 'Moghimi VPN is installed'),
+    @('You can repair the installation or uninstall v2rayN.', 'You can repair, update, or uninstall Moghimi VPN.'),
+    @('<Label X="112" Y="29" Width="-32" Height="44" FontId="1" DisablePrefix="yes">v2rayN</Label>', '<Label X="112" Y="29" Width="-32" Height="44" FontId="1" DisablePrefix="yes">Moghimi VPN</Label>'),
+    @('Manufacturer="2dust"', 'Manufacturer="Moghimi VPN"'),
+    @('"v2rayN $flavorLabel ($arch)"', '"Moghimi VPN $flavorLabel ($arch)"'),
+    @("{ v2rayN }", "{ Moghimi VPN }"),
+    @("'v2rayN'", "'Moghimi VPN'"),
+    @('"Software\v2rayN\Installer\$flavor\$arch"', '"Software\MoghimiVPN\Installer\$flavor\$arch"'),
+    @('"v2rayN-windows-$archSuffix$desktopSuffix.exe"', '"MoghimiVPN-windows-$archSuffix$desktopSuffix.exe"')
+)
+foreach ($pair in $packageReplacements) {
+    $oldValue = [string]$pair[0]
+    $newValue = [string]$pair[1]
+    if ($packageText.Contains($oldValue)) {
+        $packageText = $packageText.Replace($oldValue, $newValue)
+    }
+}
+$packageText = $packageText.Replace("'v2rayN';", "'Moghimi VPN';")
+[System.IO.File]::WriteAllText($packageScriptPath, $packageText, [System.Text.UTF8Encoding]::new($false))
+
 Write-Host "Moghimi integration patches applied to pinned v2rayN source."
