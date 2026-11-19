@@ -62,7 +62,7 @@ jobs:
           $service = Get-Content "integrations/MoghimiDeviceService.cs" -Raw
           $initialMigration = Get-Content "supabase/migrations/20261118202648_windows_independent_free_quota.sql" -Raw
           $quotaMigration = Get-Content "supabase/migrations/20261118231021_windows_quota_8_gib.sql" -Raw
-          if ($service -notmatch "8L \\* 1024 \\* 1024 \\* 1024") { throw "Windows client fallback quota is not 8 GiB." }
+          if ($service -notmatch "8L \* 1024 \* 1024 \* 1024") { throw "Windows client fallback quota is not 8 GiB." }
           if ($initialMigration -notmatch "8589934592" -or $quotaMigration -notmatch "8589934592") { throw "Windows database migrations do not define the 8 GiB quota." }
           Write-Host "Windows client and database quota definitions are aligned at 8 GiB."
 
