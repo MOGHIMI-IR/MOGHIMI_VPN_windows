@@ -53,7 +53,11 @@ public partial class CheckUpdateViewModel : MyReactiveObject
             return;
         }
 
+        // This fork owns the desktop application updates. Do not offer the
+        // upstream v2rayN self-updater, which would overwrite the Moghimi UI.
+        // Individual proxy cores continue to use their own upstream update channels.
         var models = CoreInfoManager.Instance.GetCheckUpdateCoreTypes()
+                        .Where(t => t != ECoreType.v2rayN)
                         .Select(t => GetCheckUpdateModel(t))
                         .ToList();
 
