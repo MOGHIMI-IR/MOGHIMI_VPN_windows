@@ -776,8 +776,8 @@ $packageReplacements = @(
     @('<Label X="112" Y="29" Width="-32" Height="44" FontId="1" DisablePrefix="yes">v2rayN</Label>', '<Label X="112" Y="29" Width="-32" Height="44" FontId="1" DisablePrefix="yes">Moghimi VPN</Label>'),
     @('Manufacturer="2dust"', 'Manufacturer="Moghimi VPN"'),
     @('"v2rayN $flavorLabel ($arch)"', '"Moghimi VPN $flavorLabel ($arch)"'),
-    @("{ v2rayN }", "{ Moghimi VPN }"),
-    @("'v2rayN'", "'Moghimi VPN'"),
+    @('$folderName = if ($flavor -eq ''wpf'') { ''v2rayN'' } else { ''v2rayN Desktop'' }', '$folderName = if ($flavor -eq ''wpf'') { ''Moghimi VPN'' } else { ''Moghimi VPN Desktop'' }'),
+    @('$shortcutName = if ($flavor -eq ''wpf'') { ''v2rayN'' } else { ''v2rayN Desktop'' }', '$shortcutName = if ($flavor -eq ''wpf'') { ''Moghimi VPN'' } else { ''Moghimi VPN Desktop'' }'),
     @('"Software\v2rayN\Installer\$flavor\$arch"', '"Software\MoghimiVPN\Installer\$flavor\$arch"'),
     @('"v2rayN-windows-$archSuffix$desktopSuffix.exe"', '"MoghimiVPN-windows-$archSuffix$desktopSuffix.exe"')
 )
@@ -788,7 +788,6 @@ foreach ($pair in $packageReplacements) {
         $packageText = $packageText.Replace($oldValue, $newValue)
     }
 }
-$packageText = $packageText.Replace("'v2rayN';", "'Moghimi VPN';")
 [System.IO.File]::WriteAllText($packageScriptPath, $packageText, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Moghimi integration patches applied to pinned v2rayN source."
