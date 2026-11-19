@@ -1,0 +1,481 @@
+$ErrorActionPreference = "Stop"
+
+$integrationRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $integrationRoot
+$upstreamRoot = Join-Path $repoRoot "vendor\v2rayN"
+$serviceSource = Join-Path $integrationRoot "MoghimiDeviceService.cs"
+
+function Replace-Exact {
+    param([string]$Path, [string]$Old, [string]$New, [string]$Label)
+    $text = [System.IO.File]::ReadAllText($Path)
+    $count = [regex]::Matches($text, [regex]::Escape($Old)).Count
+    if ($count -ne 1) { throw "Patch anchor '$Label' expected exactly once in '$Path' but found $count." }
+    $text = $text.Replace($Old, $New)
+    [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
+$serviceTarget = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\MoghimiDeviceService.cs"
+Copy-Item $serviceSource $serviceTarget -Force
+
+$vmPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ViewModels\MainWindowViewModel.cs"
+$vmOld = @'
+        TaskManager.Instance.RegUpdateTask(_config, UpdateTaskHandler);
+
+        if (_config.GuiItem.EnableStatistics || _config.GuiItem.DisplayRealTimeSpeed)
+'@
+$vmNew = @'
+        TaskManager.Instance.RegUpdateTask(_config, UpdateTaskHandler);
+
+        // The Moghimi quota service consumes the core's proxy-only traffic counters.
+        _config.GuiItem.EnableStatistics = true;
+        _config.GuiItem.DisplayRealTimeSpeed = true;
+        try
+        {
+            await MoghimiDeviceService.Instance.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            // Keep the GUI available while offline; CoreManager performs a strict
+            // entitlement check before any real connection is allowed to start.
+            Logging.SaveLog("MoghimiDeviceService.Initialize", ex);
+        }
+
+        if (_config.GuiItem.EnableStatistics || _config.GuiItem.DisplayRealTimeSpeed)
+'@
+Replace-Exact $vmPath $vmOld $vmNew "initialize Moghimi quota + force core statistics"
+
+$statsPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\StatisticsManager.cs"
+$statsOld = @'
+        if (server.ProxyUp != 0 || server.ProxyDown != 0)
+        {
+            _serverStatItem.TodayUp += server.ProxyUp;
+'@
+$statsNew = @'
+        if (server.ProxyUp != 0 || server.ProxyDown != 0)
+        {
+            // These counters are proxy-only (not direct/system traffic).
+            MoghimiDeviceService.Instance.AccumulateTraffic(server.ProxyDown, server.ProxyUp);
+            _serverStatItem.TodayUp += server.ProxyUp;
+'@
+Replace-Exact $statsPath $statsOld $statsNew "report proxy traffic to Moghimi quota service"
+
+$corePath = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\CoreManager.cs"
+$coreOld = @'
+        if (mainContext == null)
+        {
+            await UpdateFunc(false, ResUI.CheckServerSettings);
+            return;
+        }
+
+        var node = mainContext.Node;
+'@
+$coreNew = @'
+        if (mainContext == null)
+        {
+            await UpdateFunc(false, ResUI.CheckServerSettings);
+            return;
+        }
+
+        // Block every connection unless the server confirms free or paid entitlement.
+        try
+        {
+            if (!await MoghimiDeviceService.Instance.EnsureAccessAllowedAsync())
+            {
+                await UpdateFunc(true, "حجم رایگان و اشتراک این دستگاه تمام شده است.");
+                await CoreStop();
+                await SysProxyHandler.UpdateSysProxy(_config, forceDisable: true);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("MoghimiDeviceService.EntitlementCheck", ex);
+            await UpdateFunc(true, "اعتبار این دستگاه بررسی نشد؛ برای جلوگیری از مصرف ثبت‌نشده اتصال برقرار نشد.");
+            await CoreStop();
+            await SysProxyHandler.UpdateSysProxy(_config, forceDisable: true);
+            return;
+        }
+
+        var node = mainContext.Node;
+'@
+Replace-Exact $corePath $coreOld $coreNew "enforce entitlement before core launch"
+
+$profilesVmPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ViewModels\ProfilesViewModel.cs"
+$profilesOld = @'
+        var canEditRemove = this.WhenAnyValue(
+           x => x.SelectedProfile,
+           selectedSource => selectedSource != null && !selectedSource.IndexId.IsNullOrEmpty());
+'@
+$profilesNew = @'
+        var canUseProfile = this.WhenAnyValue(
+           x => x.SelectedProfile,
+           selectedSource => selectedSource != null && !selectedSource.IndexId.IsNullOrEmpty());
+
+        // Moghimi cloud profiles remain connectable, but cannot be edited, moved,
+        // copied, shared, exported, or deleted from the client.
+        var canEditRemove = this.WhenAnyValue(
+           x => x.SelectedProfile,
+           selectedSource => selectedSource != null &&
+               !selectedSource.IndexId.IsNullOrEmpty() &&
+               selectedSource.Subid != "moghimi-cloud");
+
+        var canEditSub = this.WhenAnyValue(
+           x => x.SelectedSub,
+           selectedSource => selectedSource != null &&
+               selectedSource.Id != "moghimi-cloud");
+'@
+Replace-Exact $profilesVmPath $profilesOld $profilesNew "separate cloud profile connect and edit permissions"
+
+$setDefaultOld = @'
+        SetDefaultServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await SetDefaultServer();
+        }, canEditRemove);
+'@
+$setDefaultNew = @'
+        SetDefaultServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await SetDefaultServer();
+        }, canUseProfile);
+'@
+Replace-Exact $profilesVmPath $setDefaultOld $setDefaultNew "keep cloud profiles connectable"
+
+$moveGroupOld = @'
+        MoveToGroupCmd = ReactiveCommand.CreateFromTask<SubItem>(async sub =>
+        {
+            SelectedMoveToGroup = sub;
+        });
+'@
+$moveGroupNew = @'
+        MoveToGroupCmd = ReactiveCommand.CreateFromTask<SubItem>(async sub =>
+        {
+            SelectedMoveToGroup = sub;
+        }, canEditRemove);
+'@
+Replace-Exact $profilesVmPath $moveGroupOld $moveGroupNew "prevent moving protected cloud profiles"
+
+$editSubOld = @'
+        EditSubCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await EditSubAsync(false);
+        });
+        DeleteSubCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await DeleteSubAsync();
+        });
+'@
+$editSubNew = @'
+        EditSubCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await EditSubAsync(false);
+        }, canEditSub);
+        DeleteSubCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await DeleteSubAsync();
+        }, canEditSub);
+'@
+Replace-Exact $profilesVmPath $editSubOld $editSubNew "protect the Moghimi cloud group from edit/delete"
+
+$appPath = Join-Path $upstreamRoot "v2rayN\v2rayN\App.xaml"
+$appOld = @'
+                    BaseTheme="Light"
+                    PrimaryColor="Blue"
+                    SecondaryColor="Lime" />
+'@
+$appNew = @'
+                    BaseTheme="Dark"
+                    PrimaryColor="DeepPurple"
+                    SecondaryColor="Cyan" />
+'@
+Replace-Exact $appPath $appOld $appNew "switch to dark violet cyan palette"
+
+$paperOld = @'
+            <system:Double x:Key="MenuItemHeight">32</system:Double>
+'@
+$paperNew = @'
+            <LinearGradientBrush x:Key="MoghimiWindowGradient" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FF080D1A" Offset="0" />
+                <GradientStop Color="#FF121A30" Offset="0.52" />
+                <GradientStop Color="#FF101124" Offset="1" />
+            </LinearGradientBrush>
+            <system:Double x:Key="MenuItemHeight">32</system:Double>
+'@
+Replace-Exact $appPath $paperOld $paperNew "define Moghimi glass dark background"
+
+$windowBackgroundOld = @'
+                <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
+'@
+$windowBackgroundNew = @'
+                <Setter Property="Background" Value="{StaticResource MoghimiWindowGradient}" />
+'@
+Replace-Exact $appPath $windowBackgroundOld $windowBackgroundNew "apply Moghimi gradient background"
+
+$mainXamlPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Views\MainWindow.xaml"
+$titleOld = '    Title="v2rayN"'
+$titleNew = '    Title="Moghimi VPN | Windows"'
+Replace-Exact $mainXamlPath $titleOld $titleNew "brand app window title"
+
+$gridOld = @'
+        <Grid>
+            <DockPanel>
+'@
+$gridNew = @'
+        <Grid ClipToBounds="True">
+            <Ellipse x:Name="MoghimiGlowLeft"
+                     Width="430" Height="430"
+                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                     Margin="-170,-190,0,0"
+                     Fill="#553C6BFF" Opacity="0.18"
+                     IsHitTestVisible="False">
+                <Ellipse.Effect>
+                    <BlurEffect Radius="90" />
+                </Ellipse.Effect>
+            </Ellipse>
+            <Ellipse x:Name="MoghimiGlowRight"
+                     Width="500" Height="500"
+                     HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                     Margin="0,0,-220,-260"
+                     Fill="#554B2AAE" Opacity="0.16"
+                     IsHitTestVisible="False">
+                <Ellipse.Effect>
+                    <BlurEffect Radius="110" />
+                </Ellipse.Effect>
+            </Ellipse>
+            <DockPanel>
+'@
+Replace-Exact $mainXamlPath $gridOld $gridNew "add ambient motion glow layers"
+
+$toolbarAnchor = @'
+                        <materialDesign:PopupBox
+'@
+$toolbarInsert = @'
+                        <Border Margin="3,0,6,0"
+                                Padding="9,5"
+                                CornerRadius="11"
+                                Background="#331D2A49"
+                                BorderBrush="#6678A7FF"
+                                BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <StackPanel Margin="0,0,8,0">
+                                    <TextBlock Text="سهمیه دستگاه" FontSize="10" Foreground="#FFB7C9E8" />
+                                    <ProgressBar x:Name="pbMoghimiFreeQuota"
+                                                 Width="92" Height="7"
+                                                 Minimum="0" Maximum="100" Value="0"
+                                                 Background="#443C4B69"
+                                                 Foreground="#FF4DD9E8"
+                                                 BorderThickness="0" />
+                                </StackPanel>
+                                <TextBlock x:Name="txtMoghimiQuota"
+                                           VerticalAlignment="Center"
+                                           Foreground="White"
+                                           FontWeight="SemiBold"
+                                           Text="۸ گیگ رایگان" />
+                            </StackPanel>
+                        </Border>
+                        <Button x:Name="btnMoghimiSync"
+                                Margin="3,0"
+                                Padding="12,7"
+                                Background="#663B2C77"
+                                Foreground="White"
+                                BorderBrush="#887E8BFF"
+                                BorderThickness="1"
+                                ToolTip="دریافت و به‌روزرسانی سرورهای مقیمی">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Sync" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="همگام‌سازی مقیمی" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="btnMoghimiActivate"
+                                Margin="3,0"
+                                Padding="12,7"
+                                Background="#3323A6A9"
+                                Foreground="White"
+                                BorderBrush="#6670E6E8"
+                                BorderThickness="1"
+                                ToolTip="ثبت کد فعال‌سازی اشتراک ویندوز">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="VpnKey" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="فعال‌سازی اشتراک" />
+                            </StackPanel>
+                        </Button>
+                        <materialDesign:PopupBox
+'@
+Replace-Exact $mainXamlPath $toolbarAnchor $toolbarInsert "add quota sync and activation controls"
+
+$mainCsPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Views\MainWindow.xaml.cs"
+$usingOld = @'
+using System.Windows.Controls;
+using System.Windows.Media;
+'@
+$usingNew = @'
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+'@
+Replace-Exact $mainCsPath $usingOld $usingNew "add WPF dialog and animation namespaces"
+
+$ctorOld = @'
+        InitializeComponent();
+
+        _config = ConfigTextHandler.Config;
+'@
+$ctorNew = @'
+        InitializeComponent();
+
+        Title = $"Moghimi VPN | {Utils.GetVersion()}";
+        btnMoghimiSync.Click += BtnMoghimiSync_Click;
+        btnMoghimiActivate.Click += BtnMoghimiActivate_Click;
+        MoghimiDeviceService.Instance.StatusChanged += MoghimiDeviceService_StatusChanged;
+        Loaded += (_, _) => StartMoghimiMotion();
+
+        _config = ConfigTextHandler.Config;
+'@
+Replace-Exact $mainCsPath $ctorOld $ctorNew "wire Moghimi toolbar and motion"
+
+$methods = @'
+
+    private void StartMoghimiMotion()
+    {
+        var pulseLeft = new DoubleAnimation(0.12, 0.28, TimeSpan.FromSeconds(5))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        var pulseRight = new DoubleAnimation(0.10, 0.25, TimeSpan.FromSeconds(6))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        var drift = new DoubleAnimation(-28, 28, TimeSpan.FromSeconds(12))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        MoghimiGlowLeft.BeginAnimation(OpacityProperty, pulseLeft);
+        MoghimiGlowRight.BeginAnimation(OpacityProperty, pulseRight);
+        MoghimiGlowRight.RenderTransform = new TranslateTransform();
+        MoghimiGlowRight.RenderTransform.BeginAnimation(TranslateTransform.XProperty, drift);
+    }
+
+    private void MoghimiDeviceService_StatusChanged(object? sender, MoghimiDeviceStatus status)
+    {
+        Dispatcher.BeginInvoke(new Action(() => UpdateMoghimiUsageUI(status)));
+    }
+
+    private void UpdateMoghimiUsageUI(MoghimiDeviceStatus status)
+    {
+        pbMoghimiFreeQuota.Value = status.FreePercent;
+        var free = status.FreeRemainingBytes / 1073741824d;
+        var paid = status.PaidRemainingBytes / 1073741824d;
+        txtMoghimiQuota.Text = $"رایگان {free:0.00} گیگ | اشتراک {paid:0.00} گیگ";
+    }
+
+    private async void BtnMoghimiSync_Click(object sender, RoutedEventArgs e)
+    {
+        btnMoghimiSync.IsEnabled = false;
+        try
+        {
+            var imported = await MoghimiDeviceService.Instance.SyncProfilesAsync();
+            await ViewModel.ProfilesViewModel.RefreshServersBiz();
+            await ViewModel.StatusBarViewModel.RefreshServersBiz();
+            NoticeManager.Instance.Enqueue($"همگام‌سازی انجام شد؛ {imported} سرور مقیمی به‌روزرسانی شد.");
+            var status = await MoghimiDeviceService.Instance.GetStatusAsync(forceRefresh: true);
+            UpdateMoghimiUsageUI(status);
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("MoghimiSync", ex);
+            NoticeManager.Instance.Enqueue(ex.Message);
+        }
+        finally
+        {
+            btnMoghimiSync.IsEnabled = true;
+        }
+    }
+
+    private void BtnMoghimiActivate_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Window
+        {
+            Title = "فعال‌سازی اشتراک مقیمی",
+            Width = 470,
+            Height = 245,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(16, 23, 43)),
+            Foreground = Brushes.White,
+            ShowInTaskbar = false
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(24) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "کد فعال‌سازی نسخه ویندوز را وارد کن",
+            FontSize = 17,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            Margin = new Thickness(0, 0, 0, 12)
+        });
+
+        var keyBox = new TextBox
+        {
+            Height = 42,
+            Padding = new Thickness(10, 8, 10, 8),
+            FontSize = 15,
+            FlowDirection = FlowDirection.LeftToRight,
+            TextAlignment = TextAlignment.Center,
+            ToolTip = "کد فعال‌سازی ۳۲ کاراکتری"
+        };
+        panel.Children.Add(keyBox);
+
+        var activate = new Button
+        {
+            Content = "فعال‌سازی اشتراک",
+            Margin = new Thickness(0, 18, 0, 0),
+            Padding = new Thickness(18, 9, 18, 9),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(Color.FromRgb(74, 58, 137)),
+            Foreground = Brushes.White
+        };
+        panel.Children.Add(activate);
+        activate.Click += async (_, _) =>
+        {
+            activate.IsEnabled = false;
+            try
+            {
+                await MoghimiDeviceService.Instance.ActivateAsync(keyBox.Text);
+                var status = await MoghimiDeviceService.Instance.GetStatusAsync(forceRefresh: true);
+                UpdateMoghimiUsageUI(status);
+                NoticeManager.Instance.Enqueue("اشتراک ویندوز با موفقیت فعال شد.");
+                dialog.Close();
+            }
+            catch (Exception ex)
+            {
+                Logging.SaveLog("MoghimiActivation", ex);
+                MessageBox.Show(dialog, ex.Message, "خطا در فعال‌سازی", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                activate.IsEnabled = true;
+            }
+        };
+
+        dialog.Content = panel;
+        dialog.ShowDialog();
+    }
+'@
+$csText = [System.IO.File]::ReadAllText($mainCsPath)
+if ($csText.Contains("private void StartMoghimiMotion()")) {
+    throw "Moghimi MainWindow handlers are already present; refusing to duplicate the patch."
+}
+$lastBrace = $csText.LastIndexOf("}")
+if ($lastBrace -lt 0) { throw "MainWindow class closing brace was not found." }
+$csText = $csText.Insert($lastBrace, $methods + [Environment]::NewLine)
+[System.IO.File]::WriteAllText($mainCsPath, $csText, [System.Text.UTF8Encoding]::new($false))
+
+Write-Host "Moghimi integration patches applied to pinned v2rayN source."
