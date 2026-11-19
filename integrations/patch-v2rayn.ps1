@@ -254,6 +254,56 @@ $upstreamUpdateNew = @'
 '@
 Replace-Exact $updateVmPath $upstreamUpdateOld $upstreamUpdateNew "disable upstream GUI updater"
 
+$duplicateOld = @'
+        RemoveDuplicateServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await RemoveDuplicateServer();
+        });
+'@
+$duplicateNew = @'
+        RemoveDuplicateServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await RemoveDuplicateServer();
+        }, canEditSub);
+'@
+Replace-Exact $profilesVmPath $duplicateOld $duplicateNew "protect cloud profiles from bulk deduplication"
+
+$invalidOld = @'
+        RemoveInvalidServerResultCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await RemoveInvalidServerResult();
+        });
+'@
+$invalidNew = @'
+        RemoveInvalidServerResultCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await RemoveInvalidServerResult();
+        }, canEditSub);
+'@
+Replace-Exact $profilesVmPath $invalidOld $invalidNew "protect cloud profiles from bulk invalid-node removal"
+
+$groupAllOld = @'
+        GenGroupAllServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await GenGroupAllServer();
+        }, canEditRemove);
+        GenGroupRegionServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await GenGroupRegionServer();
+        }, canEditRemove);
+'@
+$groupAllNew = @'
+        GenGroupAllServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await GenGroupAllServer();
+        }, canEditSub);
+        GenGroupRegionServerCmd = ReactiveCommand.CreateFromTask(async () =>
+        {
+            await GenGroupRegionServer();
+        }, canEditSub);
+'@
+Replace-Exact $profilesVmPath $groupAllOld $groupAllNew "prevent cloning protected cloud profiles into exportable groups"
+
 $appPath = Join-Path $upstreamRoot "v2rayN\v2rayN\App.xaml"
 $appOld = @'
                     BaseTheme="Light"
