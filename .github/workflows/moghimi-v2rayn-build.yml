@@ -8,6 +8,7 @@ on:
     paths:
       - "v2rayN/**"
       - ".github/workflows/moghimi-v2rayn-build.yml"
+      - "supabase/**"
       - "MOGHIMI-UPSTREAM.md"
 
 permissions:
@@ -43,6 +44,17 @@ jobs:
         run: |
           dotnet build "./v2rayN/v2rayN/v2rayN.csproj" -c Release -p:EnableWindowsTargeting=true --no-restore
           if ($LASTEXITCODE -ne 0) { throw "WPF build failed." }
+
+      - name: Setup Deno for Edge Function validation
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check Windows Supabase Edge Function
+        shell: pwsh
+        run: |
+          deno check "./supabase/functions/windows-api/index.ts"
+          if ($LASTEXITCODE -ne 0) { throw "Windows Supabase Edge Function type-check failed." }
 
       - name: Run upstream service tests
         shell: pwsh
