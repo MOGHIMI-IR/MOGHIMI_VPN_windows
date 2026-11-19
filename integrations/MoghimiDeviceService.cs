@@ -201,6 +201,10 @@ public sealed class MoghimiDeviceService
             await ConfigDbHandler.RemoveServers(oldProfiles);
 
         await ConfigDbHandler.RemoveServersViaSubid(stageId, isSub: true);
+
+        // Make the Moghimi cloud group visible immediately after a successful sync.
+        ConfigTextHandler.Config.SubIndexId = CloudGroupId;
+        await ConfigTextHandler.SaveConfig();
         return stagedProfiles.Count;
     }
 
