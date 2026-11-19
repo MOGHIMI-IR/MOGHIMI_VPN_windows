@@ -52,6 +52,11 @@ public sealed class MoghimiDeviceService
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "MoghimiVPN",
         "device-auth.dpapi");
+    private readonly string _userStatePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MoghimiVPN",
+        "device-auth-machine-fallback.dpapi");
+    private bool _useUserStateFallback;
     private readonly SemaphoreSlim _initializationGate = new(1, 1);
     private readonly SemaphoreSlim _statusGate = new(1, 1);
     private readonly SemaphoreSlim _reportGate = new(1, 1);
@@ -446,6 +451,28 @@ public sealed class MoghimiDeviceService
             Logging.SaveLog("MoghimiDeviceService.LoadMachineState", ex);
         }
 
+        // Standard-user installs may not have write access to ProgramData. Keep a DPAPI
+        // CurrentUser fallback so normal users can still connect; the identity itself is
+        // derived from the machine GUID and therefore does not depend on this fallback file.
+        try
+        {
+            if (File.Exists(_userStatePath))
+            {
+                var cipher = File.ReadAllBytes(_userStatePath);
+                var clear = ProtectedData.Unprotect(cipher, MachineEntropy, DataProtectionScope.CurrentUser);
+                var state = JsonSerializer.Deserialize<DeviceState>(clear);
+                if (state is not null && Guid.TryParse(state.InstallationId, out _) && IsToken(state.FreeDeviceToken))
+                {
+                    _useUserStateFallback = true;
+                    return state;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("MoghimiDeviceService.LoadUserFallback", ex);
+        }
+
         // Migrate the original per-user DPAPI file so existing beta installations retain their device id.
         try
         {
@@ -463,7 +490,10 @@ public sealed class MoghimiDeviceService
                 var freeToken = ReadString(root, "FreeDeviceToken");
                 var paidToken = ReadString(root, "DeviceToken");
                 if (Guid.TryParse(installationId, out _) && IsToken(freeToken))
+                {
+                    _useUserStateFallback = true;
                     return new DeviceState { InstallationId = installationId!, FreeDeviceToken = freeToken!, PaidDeviceToken = paidToken };
+                }
             }
         }
         catch (Exception ex)
@@ -480,14 +510,34 @@ public sealed class MoghimiDeviceService
 
     private void SaveState()
     {
-        var directory = Path.GetDirectoryName(_statePath)!;
+        if (!_useUserStateFallback)
+        {
+            try
+            {
+                WriteProtectedState(_statePath, DataProtectionScope.LocalMachine);
+                return;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Logging.SaveLog("MoghimiDeviceService.ProgramDataUnavailable", ex);
+                _useUserStateFallback = true;
+            }
+        }
+
+        WriteProtectedState(_userStatePath, DataProtectionScope.CurrentUser);
+    }
+
+    private void WriteProtectedState(string path, DataProtectionScope scope)
+    {
+        var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         var clear = JsonSerializer.SerializeToUtf8Bytes(_state);
-        var cipher = ProtectedData.Protect(clear, MachineEntropy, DataProtectionScope.LocalMachine);
-        var temporary = _statePath + ".tmp";
+        var entropy = MachineEntropy;
+        var cipher = ProtectedData.Protect(clear, entropy, scope);
+        var temporary = path + ".tmp";
         File.WriteAllBytes(temporary, cipher);
-        if (File.Exists(_statePath)) File.Replace(temporary, _statePath, null);
-        else File.Move(temporary, _statePath);
+        if (File.Exists(path)) File.Replace(temporary, path, null);
+        else File.Move(temporary, path);
     }
 
     private static string CreateStableInstallationId()
