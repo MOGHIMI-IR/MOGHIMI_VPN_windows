@@ -1,8 +1,9 @@
-bin/
-obj/
+**/bin/
+**/obj/
 .vs/
 publish/
 artifacts/
+dist-moghimi/
 *.user
 *.suo
 *.pfx
@@ -11,3 +12,5 @@ artifacts/
 *.key
 *.pem
 *.log
+vendor/v2rayN/.v2rayn-windows-build/
+vendor/v2rayN/dist-moghimi/

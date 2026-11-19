@@ -1,17 +1,21 @@
-# Third-party components
+# اعلان اجزای ثالث
 
-Moghimi VPN for Windows is a desktop front end and uses separately built third-party networking components.
+## v2rayN
+- پروژه: https://github.com/2dust/v2rayN
+- نسخهٔ منبع در این شاخه: commit `2b5c7ca75b9163ec49cb4941b18388a061c3d96d`
+- مجوز upstream: GPL-3.0
+- سورس از طریق Git submodule در `vendor/v2rayN` نگهداری می‌شود. در نسخهٔ مشتق‌شده باید متن مجوز، اعلان‌های اصلی و Corresponding Source مطابق GPL-3.0 حفظ و ارائه شود.
 
-## sing-box 1.14.4
-- Project: https://github.com/SagerNet/sing-box
-- License: GNU General Public License v3.0 (GPL-3.0).
-- The official Windows x64 binary is downloaded at build time from the tagged upstream release and checked against the SHA-256 digest published by GitHub.
-- The corresponding upstream license is included in the packaged runtime folder when present in the official release archive.
+## Xray-core و sing-box
+- Xray-core: https://github.com/XTLS/Xray-core
+- sing-box: https://github.com/SagerNet/sing-box
+- باینری‌ها مستقیماً از Releaseهای رسمی upstream دریافت می‌شوند. اسکریپت بسته‌بندی، فایل‌های اجرایی و فایل‌های مجوز موجود در Releaseها را به پوشهٔ runtime مربوط منتقل می‌کند.
+- از باینری‌های تغییریافته یا mirror ناشناس استفاده نمی‌شود.
 
-## Wintun 0.14.1
-- Project: https://github.com/WireGuard/wintun
-- Official download: https://www.wintun.net/
-- The AMD64 DLL is extracted from the official Wintun ZIP and the ZIP is checked against the SHA-256 digest published by the Wintun website.
-- Wintun's own license and signature are preserved; this project does not modify or re-sign the driver DLL.
+## پایگاه‌های GeoIP / GeoSite و Rule Set
+اسکریپت رسمی بسته‌بندی v2rayN پایگاه‌ها و Rule Setهای لازم برای Xray و sing-box را از منابع upstream و پروژه‌های انتشاردهندهٔ آن‌ها دریافت می‌کند. اعلان‌ها و شرایط هر منبع باید در زمان توزیع مطابق نسخهٔ دریافت‌شده حفظ شوند.
 
-No modified system driver, test-signing mode, security exclusion or Defender setting is installed by this application.
+## Wintun
+اگر نسخهٔ core/بستهٔ upstream فایل Wintun را همراه داشته باشد، همان فایل و اعلان مجوز/امضای upstream بدون تغییر حفظ می‌شود. این پروژه درایور را تغییر یا دوباره امضا نمی‌کند.
+
+این فهرست خلاصهٔ اجزای مورد انتظار است؛ فایل‌های مجوز دقیق هر Release در بستهٔ خروجی، در صورت ارائه توسط upstream، همراه همان جزء نگهداری می‌شود.

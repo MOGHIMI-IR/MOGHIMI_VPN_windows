@@ -1,33 +1,39 @@
-# تغییر مبنای ویندوز: v2rayN
+# معماری شاخهٔ v2rayn-foundation
 
-این شاخه، مبنای جدید را به‌صورت مرحله‌ای و قابل بازگشت آماده می‌کند. مخزن رسمی v2rayN به‌صورت Git submodule و روی commit ثابت ثبت شده است:
+این شاخه برای جایگزینی کلاینت اختصاصی قبلی ویندوز با **v2rayN رسمی (WPF)** ساخته شده است.
 
-- Upstream: https://github.com/2dust/v2rayN
-- Pinned commit: 2b5c7ca75b9163ec49cb4941b18388a061c3d96d
-- پروژهٔ میزبان: vendor/v2rayN/v2rayN/v2rayN.csproj
-- فریم‌ورک upstream: .NET 10 / WPF
-- مجوز upstream: GPL-3.0
+## منبع ثابت
+- مخزن: https://github.com/2dust/v2rayN
+- commit: `2b5c7ca75b9163ec49cb4941b18388a061c3d96d`
+- Git submodule: `vendor/v2rayN`
+- پروژهٔ WPF: `vendor/v2rayN/v2rayN/v2rayN.csproj` (مسیر واقعی نسبت به ریشهٔ upstream)
+- فریم‌ورک: .NET 10 / WPF
+- مجوز: GPL-3.0
 
-## اصول ادغام
+## لایهٔ Moghimi
+- `integrations/MoghimiDeviceService.cs`: ثبت دستگاه، سهمیهٔ رایگان ۸ GiB ماهانه، وضعیت حجم اشتراک، گزارش مصرف و همگام‌سازی پروفایل‌های ابری.
+- `integrations/patch-v2rayn.ps1`: Patch زمان Build برای ادغام سرویس، کنترل سهمیه پیش از شروع Core، گزارش Proxy counters، محافظت از گروه ابری، رابط فارسی RTL، Glass UI، موشن و برندینگ بسته‌بندی.
+- `supabase/functions/windows-api`: API ویندوز برای ثبت دستگاه، فعال‌سازی، وضعیت اشتراک، دریافت کاتالوگ و ثبت مصرف.
+- `supabase/functions/moghimi-telegram-router`: Router بات تلگرام ویندوز/موبایل.
+- `supabase/migrations`: طرح و RPCهای مخصوص دیتابیس ویندوز.
 
-1. موتور، parser، مدیریت پروفایل‌ها، subscription، tray و TUN از v2rayN گرفته می‌شود؛ هستهٔ اتصال اختصاصی قدیمی حذف نخواهد شد تا نسخهٔ جدید در CI و روی ویندوز واقعی تأیید شود.
-2. سرویس‌های Moghimi باید به API ویندوز windows-api و پروژهٔ مستقل Supabase ویندوز متصل باشند؛ کلید service-role هرگز داخل برنامه قرار نمی‌گیرد.
-3. سهمیهٔ رایگان سمت سرور اکنون 8 GiB است و ماهانه در UTC بازنشانی می‌شود. سهمیهٔ خریداری‌شده بعد از آن مصرف می‌شود.
-4. شناسهٔ نصب باید از شناسهٔ پایدار ویندوز ساخته شود تا Uninstall/Reinstall برنامه سهمیهٔ دستگاه را صفر نکند؛ توکن دستگاه باید محلی و رمزگذاری‌شده نگه‌داری شود.
-5. مصرف از آمار خود هسته گزارش می‌شود؛ نباید ترافیک مستقیم/خارج از تونل یا ترافیک غیرمرتبط را به اشتراک نسبت داد.
-6. کانفیگ‌های Moghimi فقط از جدول windows_server_entries دریافت می‌شوند و نباید کپی/اشتراک‌گذاری/Export شوند. کانفیگ‌های شخصی v2rayN باید مستقل باقی بمانند.
-7. رابط فارسی، RTL، glassmorphism و motion باید روی UI upstream اعمال شود؛ کنترل اتصال و چرخهٔ عمر هسته نباید با انیمیشن‌ها دستکاری شود.
+## بسته‌بندی
+Workflow شاخهٔ `v2rayn-foundation`:
+1. Submodule upstream را روی commit ثابت دریافت می‌کند.
+2. Patchهای مقیمی را در checkout موقت upstream اعمال می‌کند.
+3. اسکریپت رسمی `package-windows.ps1` را برای x64/WPF اجرا می‌کند تا Xray، sing-box، فایل‌های rule و مجوزهای upstream هم بسته‌بندی شوند.
+4. وجود فایل‌ها، اندازهٔ هسته‌ها، مجوز GPL و اجرای اولیهٔ برنامه را بررسی می‌کند.
+5. نصب‌کننده را به‌صورت Artifact در GitHub Actions منتشر می‌کند.
 
-## اجرای محلی
+## سهمیه و شناسه
+شناسهٔ نصب از MachineGuid ویندوز به GUID پایدار تبدیل می‌شود. API ثبت رایگان و فعال‌سازی خرید از یک روش هش مشترک استفاده می‌کنند تا اشتراک خریداری‌شده به همان دستگاه وصل شود. توکن و شناسه در DPAPI نگهداری می‌شوند. سهمیهٔ رایگان ۸ GiB در ماه UTC است و پس از آن، در صورت وجود، اشتراک پولی مصرف می‌شود.
 
-```powershell
-git clone --recurse-submodules https://github.com/MOGHIMI-IR/MOGHIMI_VPN_windows.git
-cd MOGHIMI_VPN_windows
-dotnet publish vendor/v2rayN/v2rayN/v2rayN.csproj -c Release -r win-x64 --self-contained true
-```
-
-این مرحله فقط پایهٔ upstream را می‌سازد. ادغام quota، sync، قفل کانفیگ ابری و طراحی نهایی باید قبل از جایگزینی نسخهٔ منتشرشده تکمیل و تست شوند.
+## اصول ایمنی
+- هیچ Service Role Key در برنامه قرار نمی‌گیرد.
+- در نبود پاسخ معتبر entitlement، اتصال جدید fail-closed می‌شود.
+- کانفیگ‌های ابری Moghimi از عملیات Copy/Share/Export/Edit/Delete محافظت می‌شوند؛ کانفیگ‌های شخصی مستقل باقی می‌مانند.
+- برنامهٔ خام upstream نباید از مسیر updater جایگزین نسخهٔ Moghimi شود؛ به‌روزرسانی هسته‌ها جدا از به‌روزرسانی خود GUI است.
+- تغییرات این شاخه تا پایان تست روی Windows واقعی نباید به main یا Stable منتقل شوند.
 
 ## مجوز
-
-v2rayN با GPL-3.0 منتشر شده است. نسخهٔ مشتق‌شدهٔ توزیع‌شده باید الزامات GPL-3.0، از جمله ارائهٔ Corresponding Source و حفظ notices و license متناظر را رعایت کند. این مخزن commit دقیق منبع upstream و تغییرات Moghimi را ثبت می‌کند.
+v2rayN تحت GPL-3.0 است. توزیع نسخهٔ مشتق‌شده مستلزم رعایت GPL-3.0، حفظ اعلان‌ها و ارائهٔ سورس متناظر شامل Patchهای مقیمی است.
