@@ -72,10 +72,39 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows publish failed." }
           if (!(Test-Path "./artifacts/v2rayN-Windows-x64/v2rayN.exe")) { throw "Published v2rayN.exe is missing." }
 
+      - name: Download official v2rayN Windows core bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $coreZip = Join-Path $env:RUNNER_TEMP "v2rayN-windows-64.zip"
+          $coreUrl = "https://github.com/2dust/v2rayN-core-bin/raw/refs/heads/master/v2rayN-windows-64.zip"
+          Invoke-WebRequest -Uri $coreUrl -OutFile $coreZip
+          if (!(Test-Path $coreZip) -or (Get-Item $coreZip).Length -lt 50000000) {
+            throw "Official v2rayN Windows core bundle download is incomplete."
+          }
+          Expand-Archive -Path $coreZip -DestinationPath $env:PUBLISH_OUTPUT -Force
+          $required = @(
+            "bin/xray/xray.exe",
+            "bin/xray/wintun.dll",
+            "bin/sing_box/sing-box.exe",
+            "bin/sing_box/libcronet.dll",
+            "bin/mihomo/mihomo.exe",
+            "bin/Country.mmdb",
+            "bin/geoip.dat",
+            "bin/geosite.dat"
+          )
+          foreach ($relativePath in $required) {
+            $fullPath = Join-Path $env:PUBLISH_OUTPUT $relativePath
+            if (!(Test-Path $fullPath)) {
+              throw "Required core runtime file is missing: $relativePath"
+            }
+          }
+          Write-Host "Official Xray, sing-box, Mihomo, Wintun and routing data are bundled."
+
       - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Moghimi-v2rayN-Windows-x64
+          name: Moghimi-v2rayN-Windows-x64-Full
           path: ./artifacts/v2rayN-Windows-x64
           if-no-files-found: error
           retention-days: 14
