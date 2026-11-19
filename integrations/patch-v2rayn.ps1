@@ -122,6 +122,20 @@ $coreNew = @'
 '@
 Replace-Exact $corePath $coreOld $coreNew "enforce entitlement before core launch"
 
+$appManagerPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\AppManager.cs"
+$shutdownOld = @'
+            await StatisticsManager.Instance.SaveTo();
+            await CoreManager.Instance.CoreStop();
+            StatisticsManager.Instance.Close();
+'@
+$shutdownNew = @'
+            await StatisticsManager.Instance.SaveTo();
+            await CoreManager.Instance.CoreStop();
+            await MoghimiDeviceService.Instance.FlushUsageAsync();
+            StatisticsManager.Instance.Close();
+'@
+Replace-Exact $appManagerPath $shutdownOld $shutdownNew "flush pending usage on application exit"
+
 $profilesVmPath = Join-Path $upstreamRoot "v2rayN\ServiceLib\ViewModels\ProfilesViewModel.cs"
 $profilesOld = @'
         var canEditRemove = this.WhenAnyValue(
