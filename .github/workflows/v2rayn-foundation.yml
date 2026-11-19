@@ -37,19 +37,33 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           if (-not (Test-Path "vendor/v2rayN/LICENSE")) { throw "The upstream GPL-3.0 license is missing." }
-          if (-not (Test-Path "vendor/v2rayN/v2rayN/v2rayN.csproj")) { throw "The official WPF project was not checked out." }
+          $project = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "v2rayN.csproj" | Where-Object { $_.FullName -match "[\\/]v2rayN[\\/]v2rayN[.]csproj$" } | Select-Object -First 1
+          if (-not $project) { throw "The official WPF project was not checked out." }
+          $env:V2RAYN_PROJECT = $project.FullName
+          Write-Host "Found official project: $($project.FullName)"
           $head = git -C vendor/v2rayN rev-parse HEAD
           $expected = "2b5c7ca75b9163ec49cb4941b18388a061c3d96d"
           if ($head -ne $expected) { throw "v2rayN submodule pin mismatch: $head" }
-          if (-not (Test-Path "vendor/v2rayN/GlobalHotKeys/src/GlobalHotKeys/GlobalHotKeys.csproj")) {
-            throw "Nested GlobalHotKeys submodule is missing."
-          }
+          $hotkeysProject = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "GlobalHotKeys.csproj" | Select-Object -First 1
+          if (-not $hotkeysProject) { throw "Nested GlobalHotKeys submodule is missing." }
 
       - name: Restore official v2rayN WPF project
-        run: dotnet restore vendor/v2rayN/v2rayN/v2rayN.csproj
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $project = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "v2rayN.csproj" | Where-Object { $_.FullName -match "[\\/]v2rayN[\\/]v2rayN[.]csproj$" } | Select-Object -First 1
+          if (-not $project) { throw "Official v2rayN project path could not be resolved." }
+          dotnet restore $project.FullName
+          if ($LASTEXITCODE -ne 0) { throw "Restore failed." }
 
       - name: Publish official WPF project
-        run: dotnet publish vendor/v2rayN/v2rayN/v2rayN.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $project = Get-ChildItem "vendor/v2rayN" -Recurse -File -Filter "v2rayN.csproj" | Where-Object { $_.FullName -match "[\\/]v2rayN[\\/]v2rayN[.]csproj$" } | Select-Object -First 1
+          if (-not $project) { throw "Official v2rayN project path could not be resolved." }
+          dotnet publish $project.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish
+          if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
 
       - name: Verify package and license
         shell: pwsh
