@@ -37,9 +37,9 @@ public sealed class WindowsUsageReport
 public sealed class WindowsLicenseStatus
 {
     public bool Active { get; init; }
-    public long FreeLimitBytes { get; init; } = 7L * 1024 * 1024 * 1024;
+    public long FreeLimitBytes { get; init; } = 8L * 1024 * 1024 * 1024;
     public long FreeUsedBytes { get; init; }
-    public long FreeRemainingBytes { get; init; } = 7L * 1024 * 1024 * 1024;
+    public long FreeRemainingBytes { get; init; } = 8L * 1024 * 1024 * 1024;
     public long PaidGrantedBytes { get; init; }
     public long PaidUsedBytes { get; init; }
     public long PaidRemainingBytes { get; init; }
@@ -318,7 +318,7 @@ public sealed class WindowsLicenseService : IWindowsCloudCatalog
     private static WindowsLicenseStatus ParseWindowsStatus(JsonElement root)
     {
         var freeLimit = ReadInt64(root, "free_limit_bytes");
-        if (freeLimit <= 0) freeLimit = 7L * 1024 * 1024 * 1024;
+        if (freeLimit <= 0) freeLimit = 8L * 1024 * 1024 * 1024;
         var freeUsed = Math.Max(0, ReadInt64(root, "free_used_bytes"));
         var freeRemaining = Math.Clamp(ReadInt64(root, "free_remaining_bytes"), 0, freeLimit);
         var paidGranted = Math.Max(0, ReadInt64(root, "paid_granted_bytes"));
