@@ -14,6 +14,28 @@ function Replace-Exact {
     [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Replace-Within-Section {
+    param(
+        [string]$Path,
+        [string]$SectionStart,
+        [string]$SectionEnd,
+        [string]$Old,
+        [string]$New,
+        [string]$Label
+    )
+    $text = [System.IO.File]::ReadAllText($Path)
+    $start = $text.IndexOf($SectionStart, [System.StringComparison]::Ordinal)
+    if ($start -lt 0) { throw "Section start '$SectionStart' missing for patch '$Label'." }
+    $end = $text.IndexOf($SectionEnd, $start + $SectionStart.Length, [System.StringComparison]::Ordinal)
+    if ($end -lt 0) { $end = $text.Length }
+    $section = $text.Substring($start, $end - $start)
+    $count = [regex]::Matches($section, [regex]::Escape($Old)).Count
+    if ($count -ne 1) { throw "Patch anchor '$Label' expected once within section but found $count." }
+    $section = $section.Replace($Old, $New)
+    $text = $text.Substring(0, $start) + $section + $text.Substring($end)
+    [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
 $serviceTarget = Join-Path $upstreamRoot "v2rayN\ServiceLib\Manager\MoghimiDeviceService.cs"
 Copy-Item $serviceSource $serviceTarget -Force
 
@@ -208,7 +230,7 @@ $windowBackgroundOld = @'
 $windowBackgroundNew = @'
                 <Setter Property="Background" Value="{StaticResource MoghimiWindowGradient}" />
 '@
-Replace-Exact $appPath $windowBackgroundOld $windowBackgroundNew "apply Moghimi gradient background"
+Replace-Within-Section $appPath 'x:Key="WindowGlobal"' 'x:Key="ViewGlobal"' $windowBackgroundOld $windowBackgroundNew "apply Moghimi gradient background"
 
 $mainXamlPath = Join-Path $upstreamRoot "v2rayN\v2rayN\Views\MainWindow.xaml"
 $titleOld = '    Title="v2rayN"'
