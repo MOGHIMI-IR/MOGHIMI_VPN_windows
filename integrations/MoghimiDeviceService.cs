@@ -204,6 +204,19 @@ public sealed class MoghimiDeviceService
         return stagedProfiles.Count;
     }
 
+    public async Task FlushUsageAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_initialized) return;
+        try
+        {
+            await ReportUsageOrRefreshAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("MoghimiDeviceService.FlushUsage", ex);
+        }
+    }
+
     public async Task ActivateAsync(string activationCode, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(activationCode))
