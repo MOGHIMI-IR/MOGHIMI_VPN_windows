@@ -124,9 +124,11 @@ public sealed class MoghimiDeviceService : IDisposable
                 if (!Guid.TryParse(existing.InstallationId, out _))
                     throw new InvalidDataException("شناسه نصب ذخیره‌شده ویندوز معتبر نیست.");
 
-                if (!hadFreeToken || storedFreeToken.ValueKind != JsonValueKind.String ||
-                    storedFreeToken.GetString() is not { Length: 64 } savedToken ||
-                    !savedToken.All(Uri.IsHexDigit))
+                var savedFreeToken = storedFreeToken.ValueKind == JsonValueKind.String
+                    ? storedFreeToken.GetString()
+                    : null;
+                if (!hadFreeToken || string.IsNullOrWhiteSpace(savedFreeToken) ||
+                    savedFreeToken.Length != 64 || !savedFreeToken.All(Uri.IsHexDigit))
                 {
                     // Upgrade the earlier DPAPI file without changing the stable installation ID
                     // or the paid activation token already associated with this machine.
