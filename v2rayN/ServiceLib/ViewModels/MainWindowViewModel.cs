@@ -330,6 +330,10 @@ public partial class MainWindowViewModel : MyReactiveObject
             return;
         }
 
+        // Moghimi usage accounting needs Xray outbound stats. Keep the native
+        // v2rayN speed/statistics endpoint enabled even if the user hides its UI.
+        _config.GuiItem.DisplayRealTimeSpeed = true;
+
         //await ConfigHandler.InitBuiltinRouting(_config);
         await ConfigHandler.InitBuiltinDNS(_config);
         await ConfigHandler.InitBuiltinFullConfigTemplate(_config);

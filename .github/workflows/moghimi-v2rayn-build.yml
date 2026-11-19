@@ -82,7 +82,8 @@ jobs:
           if (!(Test-Path $coreZip) -or (Get-Item $coreZip).Length -lt 50000000) {
             throw "Official v2rayN Windows core bundle download is incomplete."
           }
-          Expand-Archive -Path $coreZip -DestinationPath $env:PUBLISH_OUTPUT -Force
+          $publishOutput = Join-Path $PWD "artifacts/v2rayN-Windows-x64"
+          Expand-Archive -Path $coreZip -DestinationPath $publishOutput -Force
           $required = @(
             "bin/xray/xray.exe",
             "bin/xray/wintun.dll",
@@ -94,17 +95,21 @@ jobs:
             "bin/geosite.dat"
           )
           foreach ($relativePath in $required) {
-            $fullPath = Join-Path $env:PUBLISH_OUTPUT $relativePath
+            $fullPath = Join-Path $publishOutput $relativePath
             if (!(Test-Path $fullPath)) {
               throw "Required core runtime file is missing: $relativePath"
             }
           }
           Write-Host "Official Xray, sing-box, Mihomo, Wintun and routing data are bundled."
+          Compress-Archive -Path (Join-Path $publishOutput "*") -DestinationPath (Join-Path $PWD "artifacts/Moghimi-v2rayN-Windows-x64.zip") -CompressionLevel Optimal
+          if (!(Test-Path "./artifacts/Moghimi-v2rayN-Windows-x64.zip")) { throw "Final Windows bundle ZIP was not produced." }
 
       - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Moghimi-v2rayN-Windows-x64-Full
-          path: ./artifacts/v2rayN-Windows-x64
+          path: |
+            ./artifacts/v2rayN-Windows-x64
+            ./artifacts/Moghimi-v2rayN-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14

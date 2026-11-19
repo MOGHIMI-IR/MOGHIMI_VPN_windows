@@ -232,11 +232,11 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            await Dispatcher.InvokeAsync(() =>
             {
                 MoghimiConnectionStateText.Text = "سرویس سهمیه در دسترس نیست";
                 AppendMoghimiUiLog(ex.Message);
-            }));
+            });
         }
     }
 
